@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <base target="_top" href="<?= (baseUrl || '') ?>">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vigilância Socioassistencial</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#f6f8fc;color:#0f172a}
+    .container{max-width:1200px;margin:0 auto;padding:18px}
+    header{padding:18px 18px 6px}
+    h1{margin:0;font-size:18px}
+    .sub{margin-top:4px;color:#64748b;font-size:13px}
+
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 18px rgba(15,23,42,.06);padding:16px}
+    .grid{display:grid;gap:12px}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    @media (max-width:980px){.grid.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:780px){.grid.cols-3,.grid.cols-2{grid-template-columns:1fr}}
+
+    label{display:block;font-size:12px;color:#334155;margin-bottom:6px;font-weight:600}
+    input,select{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;outline:none;background:#fff;font-size:14px}
+    input:focus,select:focus{border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.15)}
+
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;background:#0ea5e9;color:#fff;position:relative}
+    .btn.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
+    .btn.secondary{background:#0f172a;color:#fff}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+
+    .btn.loading{opacity:.72;pointer-events:none}
+    .btn.loading::after{content:"";position:absolute;right:12px;top:50%;width:16px;height:16px;margin-top:-8px;border:2px solid rgba(255,255,255,.7);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;color:#334155;font-size:12px}
+    .divider{height:1px;background:#e2e8f0;margin:12px 0}
+    
+    .toast{margin-top:10px;font-size:13px}
+    .toast.ok{color:#16a34a;font-weight:600}
+    .toast.err{color:#dc2626;font-weight:600}
+
+    .title{font-weight:900;font-size:14px;margin:0 0 12px}
+    .muted{color:#64748b;font-size:12px}
+    .hint{font-size:12px;color:#64748b;margin:0 0 8px}
+    .small{font-size:11px;color:#64748b}
+
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{border:1px solid #e2e8f0;padding:8px;text-align:left}
+    th{background:#f8fafc;font-weight:700}
+    tr:hover{background:#fbfdff}
+
+    .tableScroll{max-height:500px;overflow:auto;border:1px solid #e2e8f0;border-radius:14px}
+
+    .chartBox{border:1px solid #e2e8f0;border-radius:16px;padding:12px;background:#fff;margin-top:12px}
+    .chartWrap{width:100%;overflow:auto}
+    canvas{max-width:100%;height:300px}
+
+    .stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center}
+    .stat.value{font-size:24px;font-weight:900;color:#0ea5e9}
+    .stat.label{font-size:11px;color:#64748b;margin-top:4px}
+
+    .badge{display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;background:#f0f4f8;color:#334155}
+    .badge.ok{background:#d1f5d8;color:#16a34a}
+    .badge.err{background:#fed2d2;color:#dc2626}
+  </style>
+</head>
+
+<body>
+  <header class="container">
+    <h1>🔍 Vigilância Socioassistencial</h1>
+    <div class="sub">
+      Consulte, filtre e gere relatórios detalhados de RMAs •
+      <span class="kbd"style="display:inline-block;padding:2px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;background:#f8fafc">Beta</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- FILTROS -->
+    <section class="card">
+      <h2 class="title">🔎 Filtros</h2>
+      
+      <div class="grid cols-4">
+        <div>
+          <label>Competência (De)</label>
+          <input id="filtCompFrom" type="month" />
+        </div>
+        <div>
+          <label>Competência (Até)</label>
+          <input id="filtCompTo" type="month" />
+        </div>
+        <div>
+          <label>Unidade</label>
+          <select id="filtUnidade">
+            <option value="">Todas as unidades</option>
+          </select>
+        </div>
+        <div>
+          <label>Tipo de RMA</label>
+          <select id="filtFormKey">
+            <option value="">Todos os RMAs</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnFiltrar">🔍 Filtrar</button>
+        <button class="btn ghost" id="btnLimpar">Limpar</button>
+        <button class="btn ghost" id="btnBaixarExcel">📊 Excel</button>
+        <button class="btn ghost" id="btnBaixarPDF">📄 PDF</button>
+        <span class="pill" id="pillResultados">Resultados: —</span>
+      </div>
+
+      <div class="toast" id="toastFiltro"></div>
+    </section>
+
+    <!-- ESTATÍSTICAS RÁPIDAS -->
+    <section class="card" style="margin-top:14px">
+      <h2 class="title">📈 Indicadores Principais</h2>
+      
+      <div class="grid cols-4">
+        <div class="stat">
+          <div class="stat.value" id="statTotal">0</div>
+          <div class="stat.label">RMAs Recebidos</div>
+        </div>
+        <div class="stat">
+          <div class="stat.value" id="statUnidades">0</div>
+          <div class="stat.label">Unidades Ativas</div>
+        </div>
+        <div class="stat">
+          <div class="stat.value" id="statMes">—</div>
+          <div class="stat.label">Competência Atual</div>
+        </div>
+        <div class="stat">
+          <div class="stat.value" id="statEditaveis">0</div>
+          <div class="stat.label">Editáveis (24h)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GRÁFICOS -->
+    <section class="card" style="margin-top:14px">
+      <h2 class="title">📊 Gráficos</h2>
+      
+      <div class="grid cols-2">
+        <div class="chartBox">
+          <div class="hint">RMAs por Unidade (últimas competências)</div>
+          <div class="chartWrap">
+            <canvas id="chartByUnit"></canvas>
+          </div>
+        </div>
+
+        <div class="chartBox">
+          <div class="hint">RMAs por Tipo (todos os períodos)</div>
+          <div class="chartWrap">
+            <canvas id="chartByType"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABELA DETALHADA -->
+    <section class="card" style="margin-top:14px">
+      <h2 class="title">📋 Registros Recebidos</h2>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn ghost" id="btnCopiarTabela">Copiar tabela</button>
+        <span class="small" id="toastTabela"></span>
+      </div>
+
+      <div class="tableScroll">
+        <table id="tabelaResultados">
+          <thead>
+            <tr>
+              <th>Unidade</th>
+              <th>RMA</th>
+              <th>Competência</th>
+              <th>Data Preench.</th>
+              <th>Preenchido por</th>
+              <th>Status (24h)</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyResultados">
+            <tr><td colspan="7" style="text-align:center;padding:20px">Clique em "Filtrar" para carregar dados</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RESUMO PARA RELATÓRIO -->
+    <section class="card" style="margin-top:14px">
+      <h2 class="title">📄 Resumo para Relatório</h2>
+      
+      <div class="grid cols-1">
+        <textarea id="resumoRelatorio" style="width:100%;min-height:200px;font-size:12px;font-family:monospace" readonly placeholder="O resumo formatado aparecerá aqui para copiar no seu relatório..."></textarea>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn ghost" id="btnCopiarResumo">Copiar resumo</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let BOOT = null;
+    let CURRENT_DATA = null;
+    let CHART_UNIT = null;
+    let CHART_TYPE = null;
+
+    const FORMS_LABEL = {
+      RMA_CRAS: "RMA CRAS",
+      RMA_CREAS: "RMA CREAS",
+      CADUNICO_CENTRAL: "CadÚnico",
+      CONSELHO_TUTELAR: "Conselho Tutelar",
+      CRAM_MENSAL: "CRAM",
+      CASA_CONSELHOS_MENSAL: "Casa dos Conselhos",
+      BEM_GERAL: "BEM",
+      ACOLHIMENTO_MENSAL: "Acolhimento",
+      RESTAURANTE_POPULAR_MENSAL: "Restaurante Popular"
+    };
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    function init(){
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth()+1).padStart(2,'0');
+
+      document.getElementById('filtCompFrom').value = `${yyyy}-01`;
+      document.getElementById('filtCompTo').value = `${yyyy}-${mm}`;
+
+      document.getElementById('btnFiltrar').addEventListener('click', runFiltro);
+      document.getElementById('btnLimpar').addEventListener('click', limparFiltro);
+      document.getElementById('btnBaixarExcel').addEventListener('click', baixarExcel);
+      document.getElementById('btnBaixarPDF').addEventListener('click', baixarPDF);
+      document.getElementById('btnCopiarTabela').addEventListener('click', copiarTabela);
+      document.getElementById('btnCopiarResumo').addEventListener('click', copiarResumo);
+
+      showToast('toastFiltro','Conectando…',false);
+
+      google.script.run
+        .withSuccessHandler((res)=>{
+          BOOT = res;
+          showToast('toastFiltro','',false);
+          preencherSelects();
+        })
+        .withFailureHandler((err)=>{
+          showToast('toastFiltro', err?.message || String(err), true);
+        })
+        .api_getBootstrap();
+    }
+
+    function preencherSelects(){
+      if (!BOOT) return;
+
+      const selUnidade = document.getElementById('filtUnidade');
+      const selForm = document.getElementById('filtFormKey');
+
+      (BOOT.unidades || []).forEach(u=>{
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = `${u.nome}`;
+        selUnidade.appendChild(opt);
+      });
+
+      Object.keys(FORMS_LABEL).forEach(k=>{
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = FORMS_LABEL[k];
+        selForm.appendChild(opt);
+      });
+    }
+
+    function runFiltro(){
+      const btn = document.getElementById('btnFiltrar');
+      btn.disabled = true;
+      showToast('toastFiltro','Consultando…',false);
+
+      const compFrom = document.getElementById('filtCompFrom').value || '';
+      const compTo = document.getElementById('filtCompTo').value || '';
+      const unidadeId = document.getElementById('filtUnidade').value || '';
+      const formKey = document.getElementById('filtFormKey').value || '';
+
+      google.script.run
+        .withSuccessHandler((res)=>{
+          btn.disabled = false;
+          CURRENT_DATA = res || {};
+          
+          atualizarEstatisticas();
+          renderizarTabela();
+          renderizarGraficos();
+          gerarResumo();
+          
+          showToast('toastFiltro',`Carregado: ${res?.total || 0} registros`,false);
+        })
+        .withFailureHandler((err)=>{
+          btn.disabled = false;
+          showToast('toastFiltro', err?.message || String(err), true);
+        })
+        .api_queryVigilancia({
+          competenciaFrom: compFrom,
+          competenciaTo: compTo,
+          unidadeId,
+          formKey
+        });
+    }
+
+    function limparFiltro(){
+      document.getElementById('filtUnidade').value = '';
+      document.getElementById('filtFormKey').value = '';
+      showToast('toastFiltro','Filtros limpos',false);
+    }
+
+    function atualizarEstatisticas(){
+      if (!CURRENT_DATA) return;
+
+      const rmas = CURRENT_DATA.records || [];
+      const unidades = new Set();
+      let editaveis = 0;
+
+      rmas.forEach(r=>{
+        unidades.add(r.unidadeId);
+        if (r.editavel) editaveis++;
+      });
+
+      document.getElementById('statTotal').textContent = rmas.length;
+      document.getElementById('statUnidades').textContent = unidades.size;
+      document.getElementById('statEditaveis').textContent = editaveis;
+      document.getElementById('pillResultados').textContent = `Resultados: ${rmas.length}`;
+    }
+
+    function renderizarTabela(){
+      const rmas = CURRENT_DATA.records || [];
+      const tbody = document.getElementById('tbodyResultados');
+      tbody.innerHTML = '';
+
+      if (!rmas.length){
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#64748b">Nenhum resultado encontrado</td></tr>';
+        return;
+      }
+
+      rmas.forEach(r=>{
+        const tr = document.createElement('tr');
+        const status = r.editavel ? '<span class="badge ok">Editável</span>' : '<span class="badge">Finalizado</span>';
+        
+        tr.innerHTML = `
+          <td>${escapeHtml(r.unidadeNome)}</td>
+          <td>${escapeHtml(FORMS_LABEL[r.formKey] || r.formKey)}</td>
+          <td>${escapeHtml(r.competencia)}</td>
+          <td>${escapeHtml(r.dataPreenchimento)}</td>
+          <td>${escapeHtml(r.preenchidoPor)}</td>
+          <td>${status}</td>
+          <td style="font-size:11px">
+            <button class="btn ghost" style="padding:4px 8px;font-size:11px" onclick="visualizarRMA('${escapeAttr(r.submissionId)}')">👁 Ver</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function visualizarRMA(submissionId){
+      alert('RMA: ' + submissionId + '\n\nDetalhes completos em breve.');
+    }
+
+    function renderizarGraficos(){
+      if (!CURRENT_DATA || !CURRENT_DATA.records) return;
+
+      const rmas = CURRENT_DATA.records;
+      const mapUnit = {};
+      const mapType = {};
+
+      rmas.forEach(r=>{
+        mapUnit[r.unidadeNome] = (mapUnit[r.unidadeNome] || 0) + 1;
+        mapType[FORMS_LABEL[r.formKey] || r.formKey] = (mapType[FORMS_LABEL[r.formKey] || r.formKey] || 0) + 1;
+      });
+
+      renderChart('chartByUnit', Object.keys(mapUnit).sort(), Object.keys(mapUnit).sort().map(u=>mapUnit[u]), 'bar', 'RMAs por Unidade');
+      renderChart('chartByType', Object.keys(mapType).sort(), Object.keys(mapType).sort().map(t=>mapType[t]), 'doughnut', 'RMAs por Tipo');
+    }
+
+    function renderChart(canvasId, labels, data, type, title){
+      const ctx = document.getElementById(canvasId);
+      if (!ctx) return;
+
+      if (window[canvasId + '_chart']){
+        try { window[canvasId + '_chart'].destroy(); } catch(e){}
+      }
+
+      window[canvasId + '_chart'] = new Chart(ctx, {
+        type,
+        data: { labels, datasets: [{ label: title, data, backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' }] },
+        options: { responsive: true, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    function gerarResumo(){
+      if (!CURRENT_DATA || !CURRENT_DATA.records) return;
+
+      const rmas = CURRENT_DATA.records;
+      const unidades = new Set();
+      const tipos = {};
+
+      rmas.forEach(r=>{
+        unidades.add(r.unidadeNome);
+        tipos[FORMS_LABEL[r.formKey] || r.formKey] = (tipos[FORMS_LABEL[r.formKey] || r.formKey] || 0) + 1;
+      });
+
+      const linhas = [
+        '='.repeat(80),
+        'RELATÓRIO DE VIGILÂNCIA SOCIOASSISTENCIAL',
+        '='.repeat(80),
+        '',
+        `Data do Relatório: ${new Date().toLocaleDateString('pt-BR')}`,
+        `Total de RMAs Recebidos: ${rmas.length}`,
+        `Unidades Ativas: ${unidades.size}`,
+        '',
+        'DISTRIBUIÇÃO POR TIPO:',
+        ...Object.entries(tipos).map(([tipo, qtd])=> `  • ${tipo}: ${qtd}`),
+        '',
+        'UNIDADES PARTICIPANTES:',
+        ...Array.from(unidades).sort().map(u=> `  • ${u}`),
+        '',
+        '='.repeat(80)
+      ];
+
+      document.getElementById('resumoRelatorio').value = linhas.join('\n');
+    }
+
+    function copiarTabela(){
+      const table = document.getElementById('tabelaResultados');
+      const rows = [];
+      table.querySelectorAll('tr').forEach(tr=>{
+        const cols = Array.from(tr.querySelectorAll('th,td')).map(cell=> cell.innerText.trim());
+        rows.push(cols.join('\t'));
+      });
+      navigator.clipboard?.writeText(rows.join('\n')).then(()=>{
+        document.getElementById('toastTabela').textContent = '✓ Copiado';
+        setTimeout(()=>{ document.getElementById('toastTabela').textContent = ''; }, 2000);
+      });
+    }
+
+    function copiarResumo(){
+      const texto = document.getElementById('resumoRelatorio').value;
+      navigator.clipboard?.writeText(texto).then(()=>{
+        alert('Resumo copiado! Cole no seu documento.');
+      });
+    }
+
+    function baixarExcel(){
+      alert('Excel: Em desenvolvimento');
+    }
+
+    function baixarPDF(){
+      alert('PDF: Em desenvolvimento');
+    }
+
+    function showToast(id, msg, isErr){
+      const el = document.getElementById(id);
+      el.textContent = msg || '';
+      el.className = 'toast' + (msg ? (isErr ? ' err' : ' ok') : '');
+    }
+
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    }
+
+    function escapeAttr(s){
+      return String(s||'').replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

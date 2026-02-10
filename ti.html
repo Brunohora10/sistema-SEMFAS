@@ -1,0 +1,2875 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top" href="<?= (baseUrl || '') ?>">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TI</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #334155;
+      --text-primary: #ffffff;
+      --text-secondary: #94a3b8;
+      --border-color: #475569;
+      --header-from: #1e293b;
+      --header-to: #0f172a;
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f1f5f9;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --border-color: #cbd5e1;
+      --header-from: #e2e8f0;
+      --header-to: #f1f5f9;
+    }
+
+    body {
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .view{display:none;min-height:100vh}
+    .show{display:block}
+
+    .scrollbar-thin::-webkit-scrollbar{width:6px;height:6px}
+    .scrollbar-thin::-webkit-scrollbar-track{background:rgba(100,100,100,0.08);border-radius:3px}
+    .scrollbar-thin::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.28);border-radius:3px}
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover{background:rgba(100,100,100,0.45)}
+
+    @keyframes pulse-slow{0%,100%{opacity:1}50%{opacity:.7}}
+    .animate-pulse-slow{animation:pulse-slow 2s ease-in-out infinite}
+
+    #tiApp button[aria-busy="true"]{opacity:.75;pointer-events:none}
+    #tiApp button[aria-busy="true"]::after{
+      content:"";
+      width:14px;height:14px;border-radius:999px;
+      border:2px solid rgba(100,100,100,.45);
+      border-top-color:currentColor;display:inline-block;margin-left:10px;
+      animation:ti_spin .8s linear infinite;
+    }
+    @keyframes ti_spin{to{transform:rotate(360deg)}}
+
+    #themeToggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #themeToggle:hover {
+      transform: scale(1.05);
+    }
+
+    /* ======= MONITOR / TV (Estilo Hospital) ======= */
+    #tvApp{
+      --bg:#070b12;--card:#0b1220;--text:#e5e7eb;--muted:#94a3b8;--line:rgba(148,163,184,.18);
+      --brand:#38bdf8;--warn:#f59e0b;--bad:#ef4444;--ok:#22c55e;
+      background:linear-gradient(180deg,#050812,#070b12);
+      color:var(--text);
+      overflow:hidden;
+      min-height:100vh;
+    }
+    #tvApp .top{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:16px 18px;border-bottom:1px solid var(--line);
+      background:rgba(11,18,32,.6);backdrop-filter: blur(10px);
+    }
+    #tvApp h1{margin:0;font-size:1.05rem;letter-spacing:.2px}
+    #tvApp .sub{margin:2px 0 0;color:var(--muted);font-weight:900;font-size:.85rem}
+    #tvApp .btn{
+      border:1px solid var(--line);
+      background:#0b1220;color:var(--text);
+      border-radius:12px;padding:10px 12px;font-weight:900;
+      cursor:pointer;display:inline-flex;gap:8px;align-items:center;
+    }
+    #tvApp .btn:hover{border-color:rgba(148,163,184,.35)}
+    #tvApp .wrap{padding:20px;max-width:1600px;margin:0 auto;}
+    
+    /* Alerta de novo chamado */
+    .tv-alert{
+      position:fixed;top:0;left:0;width:100vw;height:100vh;
+      background:linear-gradient(135deg,#dc2626,#b91c1c);
+      z-index:99999;
+      display:flex;align-items:center;justify-content:center;
+      animation:tv-alert-pulse 1s ease-in-out infinite;
+    }
+    @keyframes tv-alert-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+    .tv-alert-content{display:flex;flex-direction:column;align-items:center;gap:30px;text-align:center}
+    .tv-alert-icon{font-size:12rem;animation:tv-alert-rotate 2s linear infinite}
+    @keyframes tv-alert-rotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    .tv-alert-title{font-size:5rem;font-weight:900;text-transform:uppercase;letter-spacing:8px;color:#fff;text-shadow:0 0 30px rgba(255,255,255,0.5)}
+    .tv-alert-info{font-size:2.5rem;font-weight:700;color:#fecaca;margin-top:20px;max-width:80vw}
+    
+    /* KPIs grandes */
+    .tv-kpis{
+      display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;
+    }
+    @media(max-width:1200px){.tv-kpis{grid-template-columns:repeat(2,1fr)}}
+    .tv-kpi{
+      background:rgba(11,18,32,.85);border:2px solid var(--line);
+      border-radius:20px;padding:24px;text-align:center;
+      box-shadow:0 10px 40px rgba(0,0,0,.4);
+      transition:transform 0.2s,box-shadow 0.2s;
+    }
+    .tv-kpi:hover{transform:translateY(-5px);box-shadow:0 15px 50px rgba(0,0,0,.6)}
+    .tv-kpi-value{font-size:3.5rem;font-weight:1000;margin-bottom:8px}
+    .tv-kpi-label{font-size:0.95rem;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+    .tv-kpi-danger .tv-kpi-value{color:#ef4444;text-shadow:0 0 20px rgba(239,68,68,0.6)}
+    .tv-kpi-danger{border-color:rgba(239,68,68,0.4)}
+    .tv-kpi-warning .tv-kpi-value{color:#f59e0b;text-shadow:0 0 20px rgba(245,158,11,0.6)}
+    .tv-kpi-warning{border-color:rgba(245,158,11,0.4)}
+    .tv-kpi-info .tv-kpi-value{color:#38bdf8;text-shadow:0 0 20px rgba(56,189,248,0.6)}
+    .tv-kpi-info{border-color:rgba(56,189,248,0.4)}
+    .tv-kpi-pending .tv-kpi-value{color:#a78bfa;text-shadow:0 0 20px rgba(167,139,250,0.6)}
+    .tv-kpi-pending{border-color:rgba(167,139,250,0.4)}
+    
+    /* Lista de chamados */
+    .tv-chamados{
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;
+    }
+    .tv-chamado{
+      background:rgba(11,18,32,.85);border:2px solid var(--line);
+      border-radius:18px;padding:18px;
+      box-shadow:0 10px 30px rgba(0,0,0,.3);
+      transition:all 0.3s;
+    }
+    .tv-chamado:hover{transform:translateY(-3px);box-shadow:0 15px 40px rgba(0,0,0,.5)}
+    .tv-chamado.tv-new{
+      border-color:#ef4444;box-shadow:0 0 30px rgba(239,68,68,0.5);
+      animation:tv-highlight 2s ease-in-out 3;
+    }
+    @keyframes tv-highlight{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+    .tv-chamado-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+    .tv-chamado-id{font-size:1.1rem;font-weight:900;color:#38bdf8}
+    .tv-chamado-badge{
+      padding:6px 12px;border-radius:999px;font-size:0.75rem;font-weight:900;
+      text-transform:uppercase;letter-spacing:0.5px;
+    }
+    .tv-badge-urgente{background:#dc2626;color:#fff}
+    .tv-badge-alta{background:#f59e0b;color:#fff}
+    .tv-badge-normal{background:#64748b;color:#fff}
+    .tv-chamado-local{
+      font-size:1.3rem;font-weight:800;color:#e5e7eb;margin-bottom:8px;
+      display:flex;align-items:center;gap:8px;
+    }
+    .tv-chamado-solicitante{
+      font-size:1rem;color:#94a3b8;font-weight:700;margin-bottom:12px;
+    }
+    .tv-chamado-desc{
+      font-size:0.9rem;color:#cbd5e1;line-height:1.5;
+      max-height:60px;overflow:hidden;text-overflow:ellipsis;
+    }
+    .tv-chamado-footer{
+      margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+      display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;
+    }
+    .tv-chamado-time{color:#64748b;font-weight:700}
+
+    /* ======= RELATÓRIOS (seu CSS) ======= */
+    #relApp{
+      --bg:#f6f8fc; --card:#fff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0;
+      --brand:#0ea5e9; --brand2:#2563eb; --shadow:0 10px 30px rgba(2,6,23,.08); --radius:18px;
+      background:var(--bg);
+      color:var(--text);
+      padding-bottom:24px;
+    }
+    #relApp .wrap{max-width:1180px;margin:22px auto;padding:0 16px}
+    #relApp .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}
+    #relApp h1{margin:0;font-size:1.2rem}
+    #relApp .sub{margin:2px 0 0;color:var(--muted);font-weight:900;font-size:.9rem}
+    #relApp .btn{
+      border:1px solid var(--line);background:#fff;color:#0b1220;border-radius:12px;padding:10px 12px;font-weight:900;
+      cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+    }
+    #relApp .btn.primary{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand2));box-shadow:0 10px 22px rgba(37,99,235,.22)}
+    #relApp .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px}
+    #relApp .grid{display:grid;grid-template-columns: 1fr 1fr 1fr 1fr;gap:10px}
+    @media(max-width:1000px){#relApp .grid{grid-template-columns:1fr 1fr}}
+    #relApp label{display:block;font-size:.78rem;font-weight:900;margin:0 0 6px}
+    #relApp input{width:100%;padding:11px 12px;border-radius:12px;border:2px solid var(--line);outline:none;font-weight:900}
+    #relApp input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(14,165,233,.12)}
+    #relApp .kpis{margin-top:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+    @media(max-width:1100px){#relApp .kpis{grid-template-columns:repeat(2,1fr)}}
+    #relApp .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center}
+    #relApp .kpi span{color:var(--muted);font-weight:900;font-size:.78rem}
+    #relApp .kpi b{font-size:1.05rem}
+    #relApp .charts{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:1000px){#relApp .charts{grid-template-columns:1fr}}
+    #relApp .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px}
+    #relApp .card h3{margin:0 0 8px;font-size:.9rem}
+    #relApp .foot{margin-top:10px;color:var(--muted);font-weight:900;font-size:.85rem}
+
+    /* ======= MÁQUINAS ======= */
+    .maq-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      transition: all 0.3s;
+    }
+    .maq-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .maq-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      background: var(--bg-secondary);
+    }
+    .maq-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .maq-table th,
+    .maq-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      text-align: left;
+      vertical-align: top;
+      color: var(--text-primary);
+    }
+    .maq-table th {
+      font-weight: 800;
+      background: rgba(100, 100, 100, 0.12);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .maq-table td small {
+      color: var(--text-secondary);
+    }
+    
+    /* Tabs */
+    .maq-tab {
+      padding: 10px 20px;
+      border: none;
+      background: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+    .maq-tab:hover {
+      color: var(--text-primary);
+      background: rgba(100, 100, 100, 0.1);
+      border-radius: 8px 8px 0 0;
+    }
+    .maq-tab-active {
+      color: var(--text-primary) !important;
+      border-bottom-color: #3b82f6 !important;
+    }
+    
+    .btn-loading {
+      position: relative;
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    .btn-loading::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: rgba(0, 0, 0, 0.18);
+      animation: btnPulse 1s ease-in-out infinite;
+    }
+    @keyframes btnPulse {
+      0% { opacity: 0.35; }
+      50% { opacity: 0.7; }
+      100% { opacity: 0.35; }
+    }
+    .maq-timeline {
+      position: relative;
+      padding-left: 30px;
+    }
+    .maq-timeline::before {
+      content: '';
+      position: absolute;
+      left: 9px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border-color);
+    }
+    .maq-timeline-item {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+    .maq-timeline-dot {
+      position: absolute;
+      left: -26px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 3px solid var(--bg-card);
+    }
+    .view {
+      transition: opacity 0.2s ease-in-out;
+    }
+    .view-fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen transition-colors duration-300" style="background-color: var(--bg-primary); color: var(--text-primary);">
+
+  <!-- =========================================================
+       VIEW: TI (principal)
+       ========================================================= -->
+  <section id="tiApp" class="view <?= (view === 'ti' ? 'show' : '') ?>">
+    <header class="border-b px-6 py-4 sticky top-0 z-50 transition-all duration-300" style="background: linear-gradient(to right, var(--header-from), var(--header-to)); border-color: var(--border-color);">
+      <div class="max-w-7xl mx-auto flex items-start justify-between gap-4 flex-wrap">
+
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 font-black">
+            ⚙️
+          </div>
+          <div>
+            <h1 class="text-xl font-bold text-white">TI • Chamados</h1>
+            <p class="text-sm text-slate-400">Lista e tratamento dos chamados registrados pelo sistema.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+          <div class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60">
+            <span class="text-xs text-slate-400 font-semibold">Técnico:</span>
+            <span id="ti_meName" class="font-semibold text-white">—</span>
+            <button id="ti_btnTrocarMe" type="button"
+              class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold text-sm">
+              Trocar
+            </button>
+          </div>
+
+          <button id="themeToggle" type="button" title="Alternar tema">
+            <span id="themeIcon">🌙</span>
+          </button>
+
+          <button id="ti_btnNovo" type="button"
+            class="px-4 py-2 rounded-lg bg-indigo-500/30 hover:bg-indigo-500/40 transition font-semibold">
+            ➕ Novo
+          </button>
+
+          <button id="ti_btnMonitor" type="button"
+            class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
+            🖥️ Monitor/TV
+          </button>
+
+          <button id="ti_btnRel" type="button"
+            class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
+            📊 Relatórios
+          </button>
+
+          <button id="ti_btnMaquinas" type="button"
+            class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
+            💻 Máquinas
+          </button>
+
+          <button id="ti_btnRefresh" type="button"
+            class="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 transition font-semibold shadow-lg shadow-emerald-500/20">
+            🔄 Atualizar
+          </button>
+
+          <button id="ti_btnAuto" type="button"
+            class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
+            ⏱️ Auto: OFF
+          </button>
+
+          <button id="ti_btnSair" type="button"
+            class="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 transition font-semibold">
+            Sair
+          </button>
+        </div>
+
+      </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-6 py-6 space-y-4">
+      <!-- KPIs -->
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="rounded-2xl p-5 border transition-all duration-300 hover:scale-105 cursor-pointer" 
+             style="background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%); border-color: var(--border-color);"
+             onclick="filterByStatus('ABERTO')" title="Clique para filtrar apenas chamados abertos">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">🟡</div>
+            <span class="text-xs text-amber-300 font-medium animate-pulse-slow">● ABERTOS</span>
+          </div>
+          <p id="ti_kAbertos" class="text-3xl font-bold text-amber-300">0</p>
+          <p class="text-sm mt-1" style="color: var(--text-secondary);">Abertos</p>
+        </div>
+
+        <div class="rounded-2xl p-5 border transition-all duration-300 hover:scale-105 cursor-pointer"
+             style="background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%); border-color: var(--border-color);"
+             onclick="filterByStatus('EM ANDAMENTO')" title="Clique para filtrar chamados em andamento">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-sky-500/20 rounded-xl flex items-center justify-center">🛠️</div>
+            <span class="text-xs text-sky-300 font-medium">ANDAMENTO</span>
+          </div>
+          <p id="ti_kAnd" class="text-3xl font-bold text-sky-300">0</p>
+          <p class="text-sm mt-1" style="color: var(--text-secondary);">Em andamento</p>
+        </div>
+
+        <div class="rounded-2xl p-5 border transition-all duration-300 hover:scale-105 cursor-pointer"
+             style="background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%); border-color: var(--border-color);"
+             onclick="filterByStatus('PENDENTE')" title="Clique para filtrar chamados pendentes">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-violet-500/20 rounded-xl flex items-center justify-center">🧩</div>
+            <span class="text-xs text-violet-300 font-medium">PEND.</span>
+          </div>
+          <p id="ti_kPend" class="text-3xl font-bold text-violet-300">0</p>
+          <p class="text-sm mt-1" style="color: var(--text-secondary);">Pendentes</p>
+        </div>
+
+        <div class="rounded-2xl p-5 border transition-all duration-300 hover:scale-105 cursor-pointer"
+             style="background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%); border-color: var(--border-color);"
+             onclick="filterByPriority('URGENTE')" title="Clique para filtrar chamados urgentes">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-rose-500/20 rounded-xl flex items-center justify-center">🚨</div>
+            <span class="text-xs text-rose-300 font-medium">URGENTE</span>
+          </div>
+          <p id="ti_kUrg" class="text-3xl font-bold text-rose-300">0</p>
+          <p class="text-sm mt-1" style="color: var(--text-secondary);">Alta prioridade</p>
+        </div>
+
+        <div class="rounded-2xl p-5 border transition-all duration-300 hover:scale-105 cursor-pointer"
+             style="background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%); border-color: var(--border-color);"
+             onclick="filterByStatus('CONCLUIDO')" title="Clique para filtrar chamados concluídos">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">✅</div>
+            <span class="text-xs text-emerald-300 font-medium">OK</span>
+          </div>
+          <p id="ti_kConcl" class="text-3xl font-bold text-emerald-300">0</p>
+          <p class="text-sm mt-1" style="color: var(--text-secondary);">Concluídos</p>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="rounded-2xl p-4 border transition-colors duration-300" 
+           style="background-color: var(--bg-card); border-color: var(--border-color);">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+          <div class="md:col-span-2">
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Busca</label>
+            <input id="ti_q" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+              placeholder="ID, solicitante, unidade, título…" />
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Status</label>
+            <select id="ti_status" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);">
+              <option value="">Todos</option>
+              <option>ABERTO</option>
+              <option>EM ANDAMENTO</option>
+              <option>PENDENTE</option>
+              <option>AGUARDANDO</option>
+              <option>RESOLVIDO</option>
+              <option>CONCLUIDO</option>
+              <option>CONCLUÍDO</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Prioridade</label>
+            <select id="ti_prio" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);">
+              <option value="">Todas</option>
+              <option>NORMAL</option>
+              <option>ALTA</option>
+              <option>URGENTE</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Unidade (contém)</label>
+            <input id="ti_unidade" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+              placeholder="Ex.: CRAS, CREAS, SEDE…" />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 mt-3">
+          <button id="ti_btnFiltrar" class="px-4 py-2 rounded-xl font-semibold transition-all duration-300"
+            style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);">Filtrar</button>
+          <button id="ti_btnLimpar" class="px-4 py-2 rounded-xl font-semibold border transition-all duration-300"
+            style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);">Limpar</button>
+          <span id="ti_info" class="ml-auto text-sm font-semibold" style="color: var(--text-secondary);">—</span>
+        </div>
+      </div>
+
+      <!-- Lista -->
+      <div class="rounded-2xl overflow-hidden border transition-colors duration-300" 
+           style="background-color: var(--bg-card); border-color: var(--border-color);">
+        <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--border-color);">
+          <h2 class="font-bold" style="color: var(--text-primary);">Chamados</h2>
+          <span class="text-sm" style="color: var(--text-secondary);">Clique em um chamado para abrir</span>
+        </div>
+
+        <div class="overflow-auto scrollbar-thin">
+          <table class="min-w-full text-sm">
+            <thead class="transition-colors duration-300" style="background-color: var(--bg-secondary); color: var(--text-secondary);">
+              <tr>
+                <th class="text-left px-4 py-3">ID</th>
+                <th class="text-left px-4 py-3">Status</th>
+                <th class="text-left px-4 py-3">Prioridade</th>
+                <th class="text-left px-4 py-3">Unidade</th>
+                <th class="text-left px-4 py-3">Solicitante</th>
+                <th class="text-left px-4 py-3">Título</th>
+                <th class="text-left px-4 py-3">Responsável</th>
+                <th class="text-left px-4 py-3">Atualizado</th>
+                <th class="text-left px-4 py-3">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="ti_tbody" class="divide-y transition-colors duration-300" style="border-color: var(--border-color);"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: editar/criar -->
+    <div id="ti_modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[9999]">
+      <div class="w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300"
+           style="background-color: var(--bg-card); border: 1px solid var(--border-color);">
+        <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color: var(--border-color);">
+          <div>
+            <h3 id="ti_mTitle" class="font-extrabold text-lg" style="color: var(--text-primary);">Chamado</h3>
+            <p id="ti_mSub" class="text-sm" style="color: var(--text-secondary);">—</p>
+          </div>
+          <button id="ti_mClose" class="px-3 py-2 rounded-xl font-semibold transition-all"
+            style="background-color: var(--bg-secondary); color: var(--text-primary);">Fechar</button>
+        </div>
+
+        <div class="p-5 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Status</label>
+              <select id="m_status" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none font-semibold transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);">
+                <option value="ABERTO">🟡 Aberto</option>
+                <option value="EM ANDAMENTO">🔵 Em Andamento</option>
+                <option value="PENDENTE">🟣 Pendente</option>
+                <option value="AGUARDANDO">🟠 Aguardando</option>
+                <option value="RESOLVIDO">🟢 Resolvido</option>
+                <option value="CONCLUIDO">✅ Concluído</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Prioridade</label>
+              <select id="m_prio" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none font-semibold transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);">
+                <option value="NORMAL">Normal</option>
+                <option value="ALTA">⚠️ Alta</option>
+                <option value="URGENTE">🚨 Urgente</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Responsável</label>
+              <input id="m_resp" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                placeholder="Técnico" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Categoria</label>
+              <input id="m_cat" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Unidade</label>
+              <input id="m_unidade" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Solicitante</label>
+              <input id="m_solic" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Contato</label>
+              <input id="m_contato" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);" />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Título</label>
+            <input id="m_titulo" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);" />
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Descrição</label>
+            <textarea id="m_desc" rows="4" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></textarea>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Previsão</label>
+              <input id="m_prev" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                placeholder="dd/mm/aaaa ou texto" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Última ação</label>
+              <input id="m_last" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
+                style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                placeholder="Ex.: Em atendimento / aguardando peça…" />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 pt-2">
+            <button id="ti_mSave" class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-extrabold text-slate-900">
+              Salvar
+            </button>
+            <button id="ti_mHist" class="px-5 py-2 rounded-xl font-extrabold transition-all"
+              style="background-color: var(--bg-secondary); color: var(--text-primary);">
+              Ver Histórico
+            </button>
+            <span id="ti_mId" class="ml-auto text-sm font-semibold" style="color: var(--text-secondary);">—</span>
+          </div>
+
+          <div id="ti_histBox" class="hidden mt-3 border rounded-2xl p-3 max-h-56 overflow-auto scrollbar-thin transition-colors duration-300"
+            style="border-color: var(--border-color); background-color: var(--bg-secondary);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: trocar técnico -->
+    <div id="ti_modalTec" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[9999]">
+      <div class="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+          <h3 class="font-extrabold text-lg">Selecionar técnico</h3>
+          <button id="ti_tecClose" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold">Fechar</button>
+        </div>
+        <div class="p-4">
+          <div id="ti_tecList" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- =========================================================
+       VIEW: MÁQUINAS ESTATÍSTICAS
+       ========================================================= -->
+  <section id="maqStatsApp" class="view <?= (view === 'ti_maquinas_stats' ? 'show' : '') ?>">
+    <header class="border-b px-6 py-4 sticky top-0 z-50 transition-all duration-300" style="background: linear-gradient(to right, var(--header-from), var(--header-to)); border-color: var(--border-color);">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg font-black">
+            📊
+          </div>
+          <div>
+            <h1 class="text-xl font-bold" style="color: var(--text-primary);">Estatísticas de Máquinas</h1>
+            <p class="text-sm" style="color: var(--text-secondary);">Visão geral e distribuição por local e tipo</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="maq_statsVoltar" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
+            ↩ Voltar
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-6 space-y-4">
+      <div class="maq-card">
+        <div style="font-weight:700;color:var(--text-primary);margin-bottom:12px;font-size:1.1rem">Estatísticas</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          <div class="card">
+            <div style="font-size:0.85rem;color:var(--text-secondary)">Total de equipamentos</div>
+            <div id="maq_stats_total" style="font-size:1.2rem;font-weight:800;color:var(--text-primary)">—</div>
+          </div>
+          <div class="card">
+            <div style="font-size:0.85rem;color:var(--text-secondary)">Total de locais</div>
+            <div id="maq_stats_locais" style="font-size:1.2rem;font-weight:800;color:var(--text-primary)">—</div>
+          </div>
+          <div class="card">
+            <div style="font-size:0.85rem;color:var(--text-secondary)">Total de tipos</div>
+            <div id="maq_stats_tipos" style="font-size:1.2rem;font-weight:800;color:var(--text-primary)">—</div>
+          </div>
+          <div class="card">
+            <div style="font-size:0.85rem;color:var(--text-secondary)">Local com mais equipamentos</div>
+            <div id="maq_stats_top_local" style="font-size:1.05rem;font-weight:800;color:var(--text-primary)">—</div>
+          </div>
+          <div class="card">
+            <div style="font-size:0.85rem;color:var(--text-secondary)">Tipo com mais equipamentos</div>
+            <div id="maq_stats_top_tipo" style="font-size:1.05rem;font-weight:800;color:var(--text-primary)">—</div>
+          </div>
+          <div class="card">
+            <div style="font-size:0.85rem;color:var(--text-secondary)">Top marca/modelo</div>
+            <div id="maq_stats_top_marca" style="font-size:1.05rem;font-weight:800;color:var(--text-primary)">—</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:12px">
+          <div class="card">
+            <h3 style="font-weight:700;margin-bottom:8px;color:var(--text-primary)">Locais (quantidade)</h3>
+            <div id="maq_stats_locais_table" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+          </div>
+          <div class="card">
+            <h3 style="font-weight:700;margin-bottom:8px;color:var(--text-primary)">Tipos (quantidade)</h3>
+            <div id="maq_stats_tipos_table" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+          </div>
+          <div class="card">
+            <h3 style="font-weight:700;margin-bottom:8px;color:var(--text-primary)">Marca/Modelo (quantidade)</h3>
+            <div id="maq_stats_marca_table" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- =========================================================
+       VIEW: TV / MONITOR
+       ========================================================= -->
+  <section id="tvApp" class="view <?= (view === 'ti_tv' ? 'show' : '') ?>">
+    <div class="top">
+      <div>
+        <h1>🖥️ Monitor TI • Painel de Chamados</h1>
+        <div class="sub">Atualização automática a cada 10 segundos • <span id="tvLastUpdate">—</span></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn" id="tvBack">↩ Voltar</button>
+        <button class="btn" id="tvRefresh">🔄 Atualizar</button>
+        <button class="btn" id="tvMute" title="Ativar/Desativar sons">🔔 Som: ON</button>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <!-- Novo Chamado (alerta hospital) -->
+      <div id="tvAlert" class="tv-alert" style="display:none">
+        <div class="tv-alert-content">
+          <div class="tv-alert-icon">🚨</div>
+          <div class="tv-alert-text">
+            <div class="tv-alert-title">NOVO CHAMADO</div>
+            <div id="tvAlertInfo" class="tv-alert-info">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="tv-kpis">
+        <div class="tv-kpi tv-kpi-danger">
+          <div class="tv-kpi-value" id="tvKpiUrgent">0</div>
+          <div class="tv-kpi-label">🚨 URGENTES</div>
+        </div>
+        <div class="tv-kpi tv-kpi-warning">
+          <div class="tv-kpi-value" id="tvKpiOpen">0</div>
+          <div class="tv-kpi-label">🟡 ABERTOS</div>
+        </div>
+        <div class="tv-kpi tv-kpi-info">
+          <div class="tv-kpi-value" id="tvKpiProgress">0</div>
+          <div class="tv-kpi-label">🔵 EM ANDAMENTO</div>
+        </div>
+        <div class="tv-kpi tv-kpi-pending">
+          <div class="tv-kpi-value" id="tvKpiPending">0</div>
+          <div class="tv-kpi-label">🟣 PENDENTES</div>
+        </div>
+      </div>
+
+      <!-- Lista de Chamados -->
+      <div class="tv-chamados" id="tvChamados">
+        <!-- Preenchido por JavaScript -->
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       VIEW: RELATÓRIOS
+       ========================================================= -->
+  <section id="relApp" class="view <?= (view === 'ti_relatorios' ? 'show' : '') ?>">
+    <div class="wrap">
+      <div class="top">
+        <div>
+          <h1>📊 Relatórios TI</h1>
+          <div class="sub">Filtros por período + gráficos</div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn" id="relBack">↩ Voltar</button>
+          <button class="btn primary" id="relRun">Gerar</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="grid">
+          <div>
+            <label>Início</label>
+            <input id="relIni" type="date">
+          </div>
+          <div>
+            <label>Fim</label>
+            <input id="relFim" type="date">
+          </div>
+          <div style="grid-column:span 2">
+            <label>Observação</label>
+            <input id="relObs" placeholder="(opcional)"/>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><span>Total</span><b id="rk_total">0</b></div>
+          <div class="kpi"><span>Abertos</span><b id="rk_abertos">0</b></div>
+          <div class="kpi"><span>Andamento</span><b id="rk_and">0</b></div>
+          <div class="kpi"><span>Pendentes</span><b id="rk_pend">0</b></div>
+          <div class="kpi"><span>Concluídos</span><b id="rk_conc">0</b></div>
+        </div>
+
+        <div class="kpis" id="relEstatisticas" style="display:none">
+          <div class="kpi"><span>TMA (min)</span><b id="rk_tma">—</b></div>
+          <div class="kpi"><span>Tempo Resolução (h)</span><b id="rk_resolucao">—</b></div>
+          <div class="kpi"><span>Taxa Resolução</span><b id="rk_taxa">—</b></div>
+        </div>
+
+        <div class="charts">
+          <div class="card">
+            <h3>Status</h3>
+            <canvas id="cStatus" height="170"></canvas>
+          </div>
+          <div class="card">
+            <h3>Prioridade</h3>
+            <canvas id="cPrio" height="170"></canvas>
+          </div>
+        </div>
+
+        <div id="relQuantitativos" style="display:none;margin-top:18px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <div class="card">
+              <h3>Por Categoria</h3>
+              <div id="relCatList" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+            </div>
+            <div class="card">
+              <h3>Por Unidade/Local</h3>
+              <div id="relUniList" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+            </div>
+            <div class="card">
+              <h3>Por Responsável</h3>
+              <div id="relRespList" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="relDetalhes" style="display:none;margin-top:18px">
+          <div class="card" style="margin-bottom:12px">
+            <h3>Detalhamento (filtro rapido)</h3>
+            <input id="relDetFiltro" class="w-full mt-2 px-3 py-2 rounded-xl border outline-none transition-colors"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Filtrar por nome (status, categoria, unidade, responsavel...)">
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <div class="card">
+              <details open>
+                <summary style="cursor:pointer;font-weight:800;">Por Status</summary>
+                <div id="relDetStatus" style="font-size:0.9rem;color:var(--text-secondary);margin-top:6px">—</div>
+              </details>
+            </div>
+            <div class="card">
+              <details>
+                <summary style="cursor:pointer;font-weight:800;">Por Prioridade</summary>
+                <div id="relDetPrio" style="font-size:0.9rem;color:var(--text-secondary);margin-top:6px">—</div>
+              </details>
+            </div>
+            <div class="card">
+              <details>
+                <summary style="cursor:pointer;font-weight:800;">Por Categoria</summary>
+                <div id="relDetCat" style="font-size:0.9rem;color:var(--text-secondary);margin-top:6px">—</div>
+              </details>
+            </div>
+            <div class="card">
+              <details>
+                <summary style="cursor:pointer;font-weight:800;">Por Unidade/Local</summary>
+                <div id="relDetUni" style="font-size:0.9rem;color:var(--text-secondary);margin-top:6px">—</div>
+              </details>
+            </div>
+            <div class="card">
+              <details>
+                <summary style="cursor:pointer;font-weight:800;">Por Responsavel</summary>
+                <div id="relDetResp" style="font-size:0.9rem;color:var(--text-secondary);margin-top:6px">—</div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <div id="relInsights" style="display:none;margin-top:18px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <div class="card">
+              <h3>TMA por Responsavel</h3>
+              <div id="relTmaResp" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+            </div>
+            <div class="card">
+              <h3>TMA por Unidade</h3>
+              <div id="relTmaUni" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+            </div>
+            <div class="card">
+              <h3>Top Problemas (Categoria)</h3>
+              <div id="relTopProb" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+            </div>
+            <div class="card">
+              <h3>Ranking de Locais</h3>
+              <div id="relRankLocais" style="font-size:0.9rem;color:var(--text-secondary)">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="relChamadosDetalhados" style="display:none;margin-top:18px">
+          <div class="card" style="margin-bottom:12px">
+            <h3>Chamados (detalhado)</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:8px">
+              <select id="relFStatus" class="px-3 py-2 rounded-xl border outline-none transition-colors" style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></select>
+              <select id="relFPrio" class="px-3 py-2 rounded-xl border outline-none transition-colors" style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></select>
+              <select id="relFCat" class="px-3 py-2 rounded-xl border outline-none transition-colors" style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></select>
+              <select id="relFUn" class="px-3 py-2 rounded-xl border outline-none transition-colors" style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></select>
+              <select id="relFResp" class="px-3 py-2 rounded-xl border outline-none transition-colors" style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></select>
+              <input id="relFText" class="px-3 py-2 rounded-xl border outline-none transition-colors" style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);" placeholder="Buscar por texto">
+              <button id="relExportCsv" class="px-4 py-2 rounded-xl font-semibold" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);">Exportar CSV</button>
+            </div>
+            <div id="relChamadosInfo" style="margin-top:8px;font-size:0.9rem;color:var(--text-secondary)">—</div>
+          </div>
+          <div class="card" style="overflow:auto">
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem">
+              <thead>
+                <tr style="text-align:left;border-bottom:1px solid var(--border-color)">
+                  <th style="padding:8px">ID</th>
+                  <th style="padding:8px">Status</th>
+                  <th style="padding:8px">Prioridade</th>
+                  <th style="padding:8px">Categoria</th>
+                  <th style="padding:8px">Unidade</th>
+                  <th style="padding:8px">Responsavel</th>
+                  <th style="padding:8px">Criado</th>
+                  <th style="padding:8px">Atualizado</th>
+                  <th style="padding:8px">TMA (min)</th>
+                  <th style="padding:8px">Resolucao (h)</th>
+                </tr>
+              </thead>
+              <tbody id="relChamadosBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="relMaquinas" style="display:none;margin-top:20px">
+          <h3 style="color:var(--text-primary);margin-bottom:15px">📊 Máquinas e Equipamentos por Local</h3>
+          <div id="relMaquinasLista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:15px"></div>
+        </div>
+
+        <div class="foot" id="relFoot">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       VIEW: MÁQUINAS
+       ========================================================= -->
+  <section id="maqApp" class="view <?= (view === 'ti_maquinas' ? 'show' : '') ?>">
+    <header class="border-b px-6 py-4 sticky top-0 z-50 transition-all duration-300" style="background: linear-gradient(to right, var(--header-from), var(--header-to)); border-color: var(--border-color);">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg font-black">
+            💻
+          </div>
+          <div>
+            <h1 class="text-xl font-bold" style="color: var(--text-primary);">Gestão de Máquinas</h1>
+            <p class="text-sm" style="color: var(--text-secondary);">Cadastro e rastreamento de equipamentos</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="maq_btnNovo" class="px-4 py-2 rounded-lg bg-indigo-500/30 hover:bg-indigo-500/40 transition font-semibold">
+            ➕ Nova Máquina
+          </button>
+          <button id="maq_btnStats" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
+            📊 Estatísticas
+          </button>
+          <button id="maq_btnVoltar" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
+            ↩ Voltar
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-6 space-y-4">
+      <div class="maq-card">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Buscar</label>
+            <input id="maq_inputBusca" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-all"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Codigo, tipo, local...">
+          </div>
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Local</label>
+            <input id="maq_inputLocal" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-all"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Filtrar por local">
+          </div>
+          <div class="flex items-end gap-2">
+            <button id="maq_btnFiltrar" class="px-4 py-2 rounded-xl font-semibold flex-1 transition-all"
+                    style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);">
+              Filtrar
+            </button>
+            <button id="maq_btnLimpar" class="px-4 py-2 rounded-xl font-semibold flex-1 transition-all"
+                    style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);">
+              Limpar
+            </button>
+          </div>
+        </div>
+        <div class="mt-3">
+          <span id="maq_info" class="text-sm font-semibold" style="color: var(--text-secondary);">—</span>
+        </div>
+      </div>
+
+      <div class="maq-card">
+        <div style="font-weight:700;color:var(--text-primary);margin-bottom:12px;font-size:1.1rem">Lista de maquinas</div>
+        <div class="maq-table-wrap">
+          <table class="maq-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Codigo</th>
+                <th>Tipo</th>
+                <th>Local</th>
+                <th>Desde</th>
+                <th>Obs</th>
+                <th>Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="maq_listBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal: Cadastrar/Editar -->
+    <div id="maq_modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[9999]">
+      <div class="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300"
+           style="background-color: var(--bg-card); border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto;">
+        <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color: var(--border-color);">
+          <h3 id="maq_modalTitle" class="text-xl font-bold" style="color: var(--text-primary);">Nova Máquina</h3>
+          <button id="maq_modalClose" class="px-3 py-2 rounded-lg transition-all"
+                  style="background-color: var(--bg-secondary); color: var(--text-primary);">
+            Fechar
+          </button>
+        </div>
+
+        <div class="p-5 space-y-3">
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Código de Governo *</label>
+            <input id="maq_inputCodigo" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Ex: 123456789">
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Tipo de Máquina *</label>
+            <input id="maq_inputTipo" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Ex: Notebook Dell, Desktop HP...">
+          </div>
+
+          <div style="border:1px dashed var(--border-color); border-radius:12px; padding:10px; background: var(--bg-secondary);">
+            <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:6px">Rodape de tipos (padrao)</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="maq_tipoInput" class="w-full px-3 py-2 rounded-xl border outline-none transition-colors"
+                     style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                     placeholder="Adicionar tipo...">
+              <button id="maq_tipoAdd" class="px-3 py-2 rounded-xl font-semibold"
+                      style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);">+ Add</button>
+            </div>
+            <div id="maq_tipoChips" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px"></div>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Local Atual *</label>
+            <input id="maq_inputLocalAtual" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Ex: CRAS Centro, Sede, CREAS...">
+          </div>
+
+          <div style="border:1px dashed var(--border-color); border-radius:12px; padding:10px; background: var(--bg-secondary);">
+            <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:6px">Rodape de locais (padrao)</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="maq_localInput" class="w-full px-3 py-2 rounded-xl border outline-none transition-colors"
+                     style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                     placeholder="Adicionar local...">
+              <button id="maq_localAdd" class="px-3 py-2 rounded-xl font-semibold"
+                      style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);">+ Add</button>
+            </div>
+            <div id="maq_localChips" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px"></div>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Observações</label>
+            <textarea id="maq_inputObs" rows="3" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                      style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                      placeholder="Anotações, especificações..."></textarea>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Marca</label>
+            <input id="maq_inputMarca" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Ex: Dell, HP, Lenovo">
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Modelo</label>
+            <input id="maq_inputModelo" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Ex: Latitude 5420">
+          </div>
+
+          <div class="flex gap-2 pt-2">
+            <button id="maq_btnSalvar" class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-extrabold text-slate-900 flex-1">
+              Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Mover Máquina -->
+    <div id="maq_modalMover" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[9999]">
+      <div class="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300"
+           style="background-color: var(--bg-card); border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto;">
+        <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color: var(--border-color);">
+          <h3 class="text-xl font-bold" style="color: var(--text-primary);">Mover Máquina</h3>
+          <button id="maq_modalMoverClose" class="px-3 py-2 rounded-lg transition-all"
+                  style="background-color: var(--bg-secondary); color: var(--text-primary);">
+            Fechar
+          </button>
+        </div>
+
+        <div class="p-5 space-y-3">
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Máquina</label>
+            <p id="maq_moverInfo" class="text-lg font-bold" style="color: var(--text-primary);">—</p>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Local Atual</label>
+            <p id="maq_moverAtual" style="color: var(--text-secondary);">—</p>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Novo Local *</label>
+            <input id="maq_inputNovoLocal" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                   style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                   placeholder="Digite o novo local">
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Motivo</label>
+            <textarea id="maq_inputMotivo" rows="2" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors"
+                      style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
+                      placeholder="Motivo da movimentação (opcional)"></textarea>
+          </div>
+
+          <div class="flex gap-2 pt-2">
+            <button id="maq_btnConfirmarMover" class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-extrabold text-slate-900 flex-1">
+              Confirmar Movimentação
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Histórico -->
+    <div id="maq_modalHist" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[9999]">
+      <div class="w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300"
+           style="background-color: var(--bg-card); border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto;">
+        <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color: var(--border-color);">
+          <h3 class="text-xl font-bold" style="color: var(--text-primary);">Histórico de Movimentações</h3>
+          <button id="maq_modalHistClose" class="px-3 py-2 rounded-lg transition-all"
+                  style="background-color: var(--bg-secondary); color: var(--text-primary);">
+            Fechar
+          </button>
+        </div>
+
+        <div class="p-5">
+          <p id="maq_histInfo" class="text-lg font-bold mb-4" style="color: var(--text-primary);">—</p>
+          <div id="maq_histTimeline" class="maq-timeline max-h-96 overflow-auto">
+            <!-- Preenchido por JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<script>
+  const VIEW = "<?= (view || 'ti') ?>";
+  const BASE_URL = String("<?= (baseUrl || '') ?>").replace(/&amp;/g,'&').trim();
+  let currentViewState = VIEW || 'ti'; // Rastrear view atual
+
+  const $ = (id)=>document.getElementById(id);
+
+  function hasBridge(){
+    return !!(window.google && google.script && google.script.run);
+  }
+
+  function useBridge(){
+    if (!hasBridge()) return false;
+    if (/userCodeAppPanel/i.test(location.href)) return true;
+    if (location.host.includes('script.google.com') && /\/macros\//i.test(location.pathname)) return true;
+    if (/\/dev\b/i.test(location.pathname)) return true;
+    return false;
+  }
+
+  function callBridge(apiName, payload){
+    const map = {
+      ti_boot: 'ti_boot',
+      ti_list: 'ti_list',
+      ti_get: 'ti_get',
+      ti_create: 'ti_create',
+      ti_update: 'ti_update',
+      ti_hist: 'ti_hist',
+      ti_report: 'ti_report',
+      ti_tecnicos: 'ti_listarTecnicos',
+      ti_set_tecnico: 'ti_setTecnicoAtual',
+      maq_list: 'maq_listar',
+      maq_get: 'maq_obter',
+      maq_create: 'maq_criar',
+      maq_update: 'maq_atualizar',
+      maq_move: 'maq_moverLocal',
+      maq_historico: 'maq_historico',
+      maq_delete: 'maq_excluir',
+      maq_stats: 'maq_stats'
+    };
+    const fn = map[apiName] || apiName;
+    return new Promise((resolve, reject)=>{
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)[fn](payload || {});
+    });
+  }
+
+  function baseExec(){
+    // SEMPRE usa a mesma "deployment" que está aberta (dev ou exec)
+    const cur = location.origin + location.pathname;
+    if (cur.endsWith('/dev')) return cur;
+    if (BASE_URL) return BASE_URL;
+    return cur;
+  }
+
+  async function api(apiName, payload){
+    // Check cache for read-only operations
+    if (!payload || Object.keys(payload).length === 0) {
+      if (apiName === 'ti_boot') {
+        const cached = AppCache.get('boot', 60000);
+        if (cached) return cached;
+      } else if (apiName === 'maq_list' || apiName === 'ti_list') {
+        const cacheKey = apiName + JSON.stringify(payload);
+        const cached = AppCache.get(cacheKey, 15000);
+        if (cached) return cached;
+      }
+    }
+
+    if (useBridge()) {
+      const data = await callBridge(apiName, payload);
+      if (data && data.ok) {
+        if (apiName === 'ti_boot') AppCache.set('boot', data);
+        else if (apiName === 'maq_list' || apiName === 'ti_list') {
+          const cacheKey = apiName + JSON.stringify(payload);
+          AppCache.set(cacheKey, data);
+        }
+      }
+      return data;
+    }
+
+    const url = baseExec() + '?api=' + encodeURIComponent(apiName);
+    try{
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(payload || {})
+      });
+      const data = await res.json();
+      
+      // Cache successful responses
+      if (data.ok) {
+        if (apiName === 'ti_boot') AppCache.set('boot', data);
+        else if (apiName === 'maq_list' || apiName === 'ti_list') {
+          const cacheKey = apiName + JSON.stringify(payload);
+          AppCache.set(cacheKey, data);
+        }
+      }
+      
+      return data;
+    }catch(e){
+      if (!hasBridge()) throw e;
+      return await callBridge(apiName, payload);
+    }
+  }
+
+  // Cache system
+  const AppCache = {
+    get: (key, maxAge = 30000) => {
+      try {
+        const item = sessionStorage.getItem('cache_' + key);
+        if (!item) return null;
+        const { data, timestamp } = JSON.parse(item);
+        if (Date.now() - timestamp > maxAge) {
+          sessionStorage.removeItem('cache_' + key);
+          return null;
+        }
+        return data;
+      } catch (e) {
+        return null;
+      }
+    },
+    set: (key, data) => {
+      try {
+        sessionStorage.setItem('cache_' + key, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch (e) {}
+    },
+    clear: () => {
+      try {
+        const keys = Object.keys(sessionStorage).filter(k => k.startsWith('cache_'));
+        keys.forEach(k => sessionStorage.removeItem(k));
+      } catch (e) {}
+    }
+  };
+
+  function go(view){
+    // SPA navigation - no reload
+    if (currentViewState === view) return;
+
+    // Se não for uma view do SPA, redirecionar normalmente
+    const validViews = ['ti', 'ti_tv', 'ti_relatorios', 'ti_maquinas', 'ti_maquinas_stats'];
+    if (!validViews.includes(view)) {
+      const url = new URL(window.location);
+      url.searchParams.set('view', view);
+      window.top.location.href = url.toString();
+      return;
+    }
+
+    // Limpar timer da TV ao sair
+    if (currentViewState === 'ti_tv') stopTvRefresh();
+
+    // Fade out current view
+    const allViews = ['tiApp', 'tvApp', 'relApp', 'maqApp', 'maqStatsApp'];
+    allViews.forEach(id => {
+      const el = $(id);
+      if (el) {
+        el.classList.add('view-fade-out');
+        setTimeout(() => el.classList.remove('show'), 200);
+      }
+    });
+
+    // Update URL without reload
+    const url = new URL(window.location);
+    url.searchParams.set('view', view);
+    history.pushState({ view }, '', url);
+
+    // Atualizar view atual
+    currentViewState = view;
+
+    // Fade in new view after short delay
+    setTimeout(() => {
+      // Show new view
+      const viewMap = { ti: 'tiApp', ti_tv: 'tvApp', ti_relatorios: 'relApp', ti_maquinas: 'maqApp', ti_maquinas_stats: 'maqStatsApp' };
+      const targetEl = $(viewMap[view] || 'tiApp');
+      if (targetEl) {
+        targetEl.classList.remove('view-fade-out');
+        targetEl.classList.add('show');
+        
+        // Configurar botões de voltar
+        if (view === 'ti_tv' && $('tvBack')) {
+          $('tvBack').onclick = ()=>go('ti');
+          $('tvRefresh').onclick = tvLoad;
+        }
+        else if (view === 'ti_relatorios') {
+          bindRelatoriosEvents();
+        }
+        else if (view === 'ti_maquinas') {
+          bindMaquinasEvents();
+        }
+        else if (view === 'ti_maquinas_stats') {
+          bindMaquinasStatsEvents();
+        }
+        
+        // Trigger load for view
+        if (view === 'ti') loadList();
+        else if (view === 'ti_tv') {
+          tvLoad();
+          startTvRefresh(); // Iniciar auto-refresh
+        }
+        else if (view === 'ti_maquinas') {
+          maq_carregarMaquinas();
+          maq_carregarStats();
+        }
+        else if (view === 'ti_maquinas_stats') {
+          maq_carregarMaquinas();
+          maq_carregarStats();
+        }
+        else if (view === 'ti_relatorios') relRun();
+      }
+    }, 250);
+  }
+
+  // ===== TI (principal) =====
+  let autoTimer = null;
+  let currentId = '';
+  let tecnicoAtual = '';
+
+  function showModal(el, on){
+    el.classList.toggle('hidden', !on);
+    el.classList.toggle('flex', !!on);
+  }
+
+  function normalizeUpper(s){ return String(s||'').trim().toUpperCase(); }
+
+  function kpiFromItems(items){
+    let ab=0, em=0, pe=0, urg=0, co=0;
+    items.forEach(x=>{
+      const st = normalizeUpper(x.status);
+      const pr = normalizeUpper(x.prioridade);
+      if (st === 'ABERTO') ab++;
+      else if (st === 'EM ANDAMENTO') em++;
+      else if (st === 'PENDENTE' || st === 'AGUARDANDO') pe++;
+      else if (st === 'RESOLVIDO' || st === 'CONCLUIDO' || st === 'CONCLUÍDO') co++;
+
+      if (pr === 'ALTA' || pr === 'URGENTE') urg++;
+    });
+    $('ti_kAbertos').textContent = ab;
+    $('ti_kAnd').textContent = em;
+    $('ti_kPend').textContent = pe;
+    $('ti_kUrg').textContent = urg;
+    $('ti_kConcl').textContent = co;
+  }
+
+  function rowHtml(item){
+    const badge = (txt)=>{
+      const t = normalizeUpper(txt);
+      if (t==='ABERTO') return `<span class="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-200 font-bold">🟡 ${txt}</span>`;
+      if (t==='EM ANDAMENTO') return `<span class="px-2 py-1 rounded-lg bg-sky-500/20 text-sky-200 font-bold">🔵 ${txt}</span>`;
+      if (t==='PENDENTE'||t==='AGUARDANDO') return `<span class="px-2 py-1 rounded-lg bg-violet-500/20 text-violet-200 font-bold">🟣 ${txt}</span>`;
+      if (t==='RESOLVIDO'||t==='CONCLUIDO'||t==='CONCLUÍDO') return `<span class="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-200 font-bold">✅ ${txt}</span>`;
+      return `<span class="px-2 py-1 rounded-lg bg-slate-700/50 text-slate-200 font-bold">${txt||'—'}</span>`;
+    };
+    
+    const quickActions = `
+      <div class="flex gap-1" onclick="event.stopPropagation()">
+        <button onclick="quickStatus('${item.id}', 'EM ANDAMENTO')" title="Colocar em andamento" class="px-2 py-1 text-xs rounded bg-sky-600/30 hover:bg-sky-600/50">🔵</button>
+        <button onclick="quickStatus('${item.id}', 'RESOLVIDO')" title="Marcar como resolvido" class="px-2 py-1 text-xs rounded bg-emerald-600/30 hover:bg-emerald-600/50">✅</button>
+      </div>
+    `;
+    
+    return `
+      <tr class="hover:bg-slate-900/40 cursor-pointer" data-id="${item.id}">
+        <td class="px-4 py-3 font-extrabold text-slate-100">${item.id}</td>
+        <td class="px-4 py-3">${badge(item.status)}</td>
+        <td class="px-4 py-3"><span class="font-bold">${item.prioridade||'—'}</span></td>
+        <td class="px-4 py-3">${item.unidade||'—'}</td>
+        <td class="px-4 py-3">${item.solicitante||'—'}</td>
+        <td class="px-4 py-3">${item.titulo||'—'}</td>
+        <td class="px-4 py-3">${item.responsavel||'—'}</td>
+        <td class="px-4 py-3 text-slate-300">${(item.atualizadoEm||'').toString().replace('T',' ').slice(0,16)}</td>
+        <td class="px-4 py-3">${quickActions}</td>
+      </tr>
+    `;
+  }
+
+  // ===== Filtro rápido por KPI =====
+  function filterByStatus(status) {
+    $('ti_status').value = status;
+    $('ti_q').value = '';
+    $('ti_prio').value = '';
+    $('ti_unidade').value = '';
+    loadList();
+  }
+
+  function filterByPriority(priority) {
+    $('ti_prio').value = priority;
+    $('ti_q').value = '';
+    $('ti_status').value = '';
+    $('ti_unidade').value = '';
+    loadList();
+  }
+
+  async function loadBoot(){
+    const boot = await api('ti_boot', {});
+    if (boot && boot.ok){
+      tecnicoAtual = boot.tecnicoAtual || '—';
+      $('ti_meName').textContent = tecnicoAtual;
+    }
+  }
+
+  async function loadList(){
+    $('ti_btnRefresh').setAttribute('aria-busy','true');
+    try{
+      const q = $('ti_q').value || '';
+      const status = $('ti_status').value || '';
+      const prio = $('ti_prio').value || '';
+      const unidade = $('ti_unidade').value || '';
+      const pack = await api('ti_list', { q, status, prioridade: prio, unidade, limit: 500 });
+      const items = (pack && pack.items) ? pack.items : [];
+      kpiFromItems(items);
+      $('ti_info').textContent = `${items.length} chamados`;
+      $('ti_tbody').innerHTML = items.map(rowHtml).join('');
+    } finally {
+      $('ti_btnRefresh').removeAttribute('aria-busy');
+    }
+  }
+
+  async function openChamado(id){
+    currentId = id;
+    $('ti_histBox').classList.add('hidden');
+    $('ti_histBox').innerHTML = '';
+
+    const det = await api('ti_get', { id });
+    if (!det || !det.ok) return alert(det && det.msg ? det.msg : 'Não foi possível abrir.');
+
+    const it = det.item || { id };
+
+    $('ti_mId').textContent = it.id || id;
+    $('ti_mTitle').textContent = `Chamado ${it.id || id}`;
+    $('ti_mSub').textContent = `${it.unidade||'—'} • ${it.solicitante||'—'}`;
+
+    $('m_status').value = it.status || 'ABERTO';
+    $('m_prio').value = it.prioridade || 'NORMAL';
+    $('m_cat').value = it.categoria || '';
+    $('m_unidade').value = it.unidade || '';
+    $('m_solic').value = it.solicitante || '';
+    $('m_contato').value = it.contato || '';
+    $('m_titulo').value = it.titulo || '';
+    $('m_desc').value = it.descricao || '';
+    $('m_resp').value = it.responsavel || tecnicoAtual || '';
+    $('m_prev').value = it.previsao || '';
+    $('m_last').value = it.ultimaAcao || '';
+
+    showModal($('ti_modal'), true);
+  }
+
+  async function saveChamado(isNovo){
+    const payload = {
+      id: currentId || '',
+      status: $('m_status').value,
+      prioridade: $('m_prio').value,
+      categoria: $('m_cat').value,
+      unidade: $('m_unidade').value,
+      solicitante: $('m_solic').value,
+      contato: $('m_contato').value,
+      titulo: $('m_titulo').value,
+      descricao: $('m_desc').value,
+      responsavel: $('m_resp').value,
+      previsao: $('m_prev').value,
+      ultimaAcao: $('m_last').value || 'Atualizado no painel'
+    };
+
+    $('ti_mSave').setAttribute('aria-busy','true');
+    try{
+      if (isNovo){
+        const created = await api('ti_create', payload);
+        if (!created || !created.ok) return alert(created && created.msg ? created.msg : 'Falha ao criar.');
+        currentId = created.id;
+        $('ti_mId').textContent = created.id;
+        $('ti_mTitle').textContent = `Chamado ${created.id}`;
+      } else {
+        const up = await api('ti_update', payload);
+        if (!up || !up.ok) return alert(up && up.msg ? up.msg : 'Falha ao salvar.');
+      }
+      AppCache.clear();
+      await loadList();
+      alert('Salvo!');
+    } finally {
+      $('ti_mSave').removeAttribute('aria-busy');
+    }
+  }
+
+  async function toggleAuto(){
+    const on = !!autoTimer;
+    if (on){
+      clearInterval(autoTimer);
+      autoTimer = null;
+      $('ti_btnAuto').textContent = '⏱️ Auto: OFF';
+      $('ti_btnAuto').classList.remove('bg-emerald-500/30');
+      $('ti_btnAuto').classList.add('bg-slate-700');
+    } else {
+      autoTimer = setInterval(loadList, 15000);
+      $('ti_btnAuto').textContent = '⏱️ Auto: ON';
+      $('ti_btnAuto').classList.add('bg-emerald-500/30');
+      $('ti_btnAuto').classList.remove('bg-slate-700');
+      await loadList();
+    }
+  }
+
+  async function openTecModal(){
+    const pack = await api('ti_tecnicos', {});
+    const list = (pack && pack.tecnicos) ? pack.tecnicos : [];
+    const cur = (pack && pack.tecnicoAtual) ? pack.tecnicoAtual : tecnicoAtual;
+
+    $('ti_tecList').innerHTML = list.map(n=>`
+      <button class="w-full text-left px-4 py-3 rounded-xl border border-slate-700 hover:bg-slate-800 font-bold ${n===cur?'bg-emerald-500/15 border-emerald-500/40':''}"
+        data-nome="${n}">
+        ${n}
+      </button>
+    `).join('') || `<div class="text-slate-300 font-semibold">Nenhum técnico encontrado.</div>`;
+
+    $('ti_tecList').querySelectorAll('button[data-nome]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const nome = b.getAttribute('data-nome');
+        const set = await api('ti_set_tecnico', { nome });
+        if (set && set.ok){
+          tecnicoAtual = set.tecnicoAtual;
+          $('ti_meName').textContent = tecnicoAtual;
+          showModal($('ti_modalTec'), false);
+        } else {
+          alert(set && set.msg ? set.msg : 'Falha ao definir técnico.');
+        }
+      });
+    });
+
+    showModal($('ti_modalTec'), true);
+  }
+
+  async function loadHist(){
+    if (!currentId) return;
+    const h = await api('ti_hist', { id: currentId });
+    const items = (h && h.items) ? h.items : [];
+    $('ti_histBox').innerHTML = items.map(x=>`
+      <div class="mb-2">
+        <div class="text-slate-200 font-bold">${x.acao} <span class="text-slate-400 font-semibold">• ${x.quando}</span></div>
+        <div class="text-slate-300 whitespace-pre-wrap">${x.detalhes || ''}</div>
+        <div class="text-slate-500 text-xs font-semibold">${x.usuario || ''} ${x.setor ? '• '+x.setor : ''}</div>
+      </div>
+      <div class="h-px bg-slate-700/60 my-2"></div>
+    `).join('') || `<div class="text-slate-300 font-semibold">Sem histórico.</div>`;
+    $('ti_histBox').classList.remove('hidden');
+  }
+
+  // ===== TV =====
+  let tvTimer = null;
+  // ===== TV/Monitor (Estilo Hospital) =====
+  let tvLastIds = new Set();
+  let tvMuted = false;
+  
+  function tvNotifySound(){
+    if(tvMuted) return;
+    // Som de notificação ALTO 3 vezes usando AudioContext
+    
+    for(let i = 0; i < 3; i++) {
+      const delay = i * 2; // 0s, 2s, 4s
+      
+      setTimeout(() => {
+        try{
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          
+          // Primeiro beep (grave)
+          const osc1 = audioContext.createOscillator();
+          const gain1 = audioContext.createGain();
+          osc1.connect(gain1);
+          gain1.connect(audioContext.destination);
+          osc1.frequency.value = 600;
+          osc1.type = 'square';
+          gain1.gain.setValueAtTime(0.8, audioContext.currentTime);
+          gain1.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+          osc1.start(audioContext.currentTime);
+          osc1.stop(audioContext.currentTime + 0.3);
+          
+          // Segundo beep (agudo)
+          const osc2 = audioContext.createOscillator();
+          const gain2 = audioContext.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioContext.destination);
+          osc2.frequency.value = 1200;
+          osc2.type = 'square';
+          gain2.gain.setValueAtTime(0.9, audioContext.currentTime + 0.35);
+          gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
+          osc2.start(audioContext.currentTime + 0.35);
+          osc2.stop(audioContext.currentTime + 0.8);
+          
+          // Terceiro beep (muito agudo)
+          const osc3 = audioContext.createOscillator();
+          const gain3 = audioContext.createGain();
+          osc3.connect(gain3);
+          gain3.connect(audioContext.destination);
+          osc3.frequency.value = 1500;
+          osc3.type = 'square';
+          gain3.gain.setValueAtTime(1.0, audioContext.currentTime + 0.85);
+          gain3.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1.5);
+          osc3.start(audioContext.currentTime + 0.85);
+          osc3.stop(audioContext.currentTime + 1.5);
+        }catch(e){}
+      }, delay * 1000);
+    }
+  }
+  
+  function tvShowAlert(item){
+    const alert = $('tvAlert');
+    const info = $('tvAlertInfo');
+    
+    info.textContent = `${item.unidade || 'Local não informado'} • ${item.solicitante || 'Solicitante'} • Prioridade: ${item.prioridade || 'NORMAL'}`;
+    alert.style.display = 'flex';
+    
+    tvNotifySound();
+    
+    // Esconder após 10 segundos
+    setTimeout(()=>{
+      alert.style.display = 'none';
+    }, 10000);
+  }
+  
+  function tvFormatTime(dateStr){
+    if(!dateStr) return '—';
+    const d = parseAnyDate(dateStr);
+    if(!d) return '—';
+    
+    const now = new Date();
+    const diff = Math.floor((now - d) / 1000 / 60); // minutos
+    
+    if(diff < 1) return 'Agora';
+    if(diff < 60) return `${diff}m atrás`;
+    const hours = Math.floor(diff / 60);
+    if(hours < 24) return `${hours}h atrás`;
+    const days = Math.floor(hours / 24);
+    return `${days}d atrás`;
+  }
+
+  function startTvRefresh(){
+    if (tvTimer) clearInterval(tvTimer);
+    tvTimer = setInterval(tvLoad, 10000);
+  }
+
+  function stopTvRefresh(){
+    if (tvTimer) {
+      clearInterval(tvTimer);
+      tvTimer = null;
+    }
+  }
+
+  async function tvLoad(){
+    // Bypass cache para ter dados em tempo real
+    const pack = await api('ti_list', { limit: 500 }, true);
+    const items = (pack && pack.items) ? pack.items : [];
+    const keep = items.filter(x=>{
+      const st = normalizeUpper(x.status);
+      return st==='ABERTO' || st==='EM ANDAMENTO' || st==='PENDENTE' || st==='AGUARDANDO';
+    });
+    
+    // Detectar novos chamados
+    const newIds = new Set(keep.map(x => x.id));
+    const newChamados = keep.filter(x => !tvLastIds.has(x.id));
+    
+    if(tvLastIds.size > 0 && newChamados.length > 0){
+      // Mostrar alerta apenas para os 2 mais novos
+      newChamados.slice(0,2).forEach(item => tvShowAlert(item));
+    }
+    
+    tvLastIds = newIds;
+
+    // KPIs
+    let abertos=0, andamento=0, pendentes=0, urgentes=0;
+    keep.forEach(x=>{
+      const st = normalizeUpper(x.status);
+      const pr = normalizeUpper(x.prioridade);
+      
+      if (st==='ABERTO') abertos++;
+      else if (st==='EM ANDAMENTO') andamento++;
+      else pendentes++;
+      
+      if (pr==='ALTA' || pr==='URGENTE') urgentes++;
+    });
+
+    $('tvKpiOpen').textContent = abertos;
+    $('tvKpiProgress').textContent = andamento;
+    $('tvKpiPending').textContent = pendentes;
+    $('tvKpiUrgent').textContent = urgentes;
+    
+    // Atualizar último update
+    const now = new Date();
+    $('tvLastUpdate').textContent = now.toLocaleTimeString('pt-BR');
+
+    // Renderizar chamados
+    const isNew = (id) => newChamados.some(x => x.id === id);
+    
+    $('tvChamados').innerHTML = keep.slice(0,30).map(x=>{
+      const prioClass = {
+        'URGENTE': 'tv-badge-urgente',
+        'ALTA': 'tv-badge-alta',
+        'NORMAL': 'tv-badge-normal'
+      }[normalizeUpper(x.prioridade)] || 'tv-badge-normal';
+      
+      return `
+        <div class="tv-chamado ${isNew(x.id) ? 'tv-new' : ''}">
+          <div class="tv-chamado-header">
+            <div class="tv-chamado-id">${x.id}</div>
+            <div class="tv-chamado-badge ${prioClass}">${x.prioridade || 'NORMAL'}</div>
+          </div>
+          <div class="tv-chamado-local">📍 ${x.unidade || 'Local não informado'}</div>
+          <div class="tv-chamado-solicitante">👤 ${x.solicitante || 'Solicitante'}</div>
+          <div class="tv-chamado-desc">${(x.descricao || x.titulo || '—').substring(0,120)}</div>
+          <div class="tv-chamado-footer">
+            <span class="tv-chamado-status">${x.status || 'ABERTO'}</span>
+            <span class="tv-chamado-time">${tvFormatTime(x.atualizadoEm || x.criadoEm)}</span>
+          </div>
+        </div>
+      `;
+    }).join('') || '<div style="padding:40px;text-align:center;color:#64748b">Nenhum chamado ativo</div>';
+  }
+
+  // ===== Relatórios =====
+  let chartStatus = null, chartPrio = null;
+  let relLastPack = null;
+  let relItems = [];
+
+  function setTodayRange(){
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const today = `${yyyy}-${mm}-${dd}`;
+    $('relIni').value = today;
+    $('relFim').value = today;
+  }
+
+  function renderTopList(mapObj, maxItems){
+    const entries = Object.entries(mapObj || {})
+      .filter(([,v])=>Number(v)>0)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0, maxItems || 6);
+    if (!entries.length) return '—';
+    return entries.map(([k,v])=>`<div style="margin:4px 0">• <b>${v}</b> ${k}</div>`).join('');
+  }
+
+  function renderMapTable(mapObj, filterText){
+    const ft = String(filterText||'').trim().toLowerCase();
+    const entries = Object.entries(mapObj || {})
+      .filter(([k,v])=>Number(v)>0 && (!ft || String(k).toLowerCase().includes(ft)))
+      .sort((a,b)=>b[1]-a[1]);
+    if (!entries.length) return '—';
+    return entries.map(([k,v])=>`<div style="margin:4px 0">• <b>${v}</b> ${k}</div>`).join('');
+  }
+
+  function renderAvgList(arr, unit, maxItems){
+    const list = (arr || []).slice(0, maxItems || 8);
+    if (!list.length) return '—';
+    return list.map(x=>`<div style="margin:4px 0">• <b>${x.media}</b> ${unit} - ${x.nome} (${x.total})</div>`).join('');
+  }
+
+  function renderRankList(arr, maxItems){
+    const list = (arr || []).slice(0, maxItems || 8);
+    if (!list.length) return '—';
+    return list.map(x=>`<div style="margin:4px 0">• <b>${x.total}</b> ${x.nome}</div>`).join('');
+  }
+
+  function relBuildSelect(selectEl, label, values){
+    if (!selectEl) return;
+    const opts = ['TODOS'];
+    values.forEach(v=>{ if (v) opts.push(v); });
+    selectEl.innerHTML = opts.map(v=>`<option value="${v}">${label}: ${v}</option>`).join('');
+  }
+
+  function relApplyFilters(){
+    if (!relItems || !relItems.length) return;
+    const fs = $('relFStatus') ? $('relFStatus').value : 'TODOS';
+    const fp = $('relFPrio') ? $('relFPrio').value : 'TODOS';
+    const fc = $('relFCat') ? $('relFCat').value : 'TODOS';
+    const fu = $('relFUn') ? $('relFUn').value : 'TODOS';
+    const fr = $('relFResp') ? $('relFResp').value : 'TODOS';
+    const ft = $('relFText') ? $('relFText').value.trim().toLowerCase() : '';
+
+    const filtered = relItems.filter(x=>{
+      if (fs !== 'TODOS' && x.status !== fs) return false;
+      if (fp !== 'TODOS' && x.prioridade !== fp) return false;
+      if (fc !== 'TODOS' && x.categoria !== fc) return false;
+      if (fu !== 'TODOS' && x.unidade !== fu) return false;
+      if (fr !== 'TODOS' && x.responsavel !== fr) return false;
+      if (ft) {
+        const blob = [x.id,x.status,x.prioridade,x.categoria,x.unidade,x.responsavel,x.solicitante,x.titulo].join(' ').toLowerCase();
+        if (!blob.includes(ft)) return false;
+      }
+      return true;
+    });
+
+    const body = $('relChamadosBody');
+    if (body) {
+      body.innerHTML = filtered.map(x=>`
+        <tr style="border-bottom:1px solid var(--border-color)">
+          <td style="padding:8px">${x.id||'—'}</td>
+          <td style="padding:8px">${x.status||'—'}</td>
+          <td style="padding:8px">${x.prioridade||'—'}</td>
+          <td style="padding:8px">${x.categoria||'—'}</td>
+          <td style="padding:8px">${x.unidade||'—'}</td>
+          <td style="padding:8px">${x.responsavel||'—'}</td>
+          <td style="padding:8px">${(x.criadoEm||'').toString().replace('T',' ').slice(0,16)}</td>
+          <td style="padding:8px">${(x.atualizadoEm||'').toString().replace('T',' ').slice(0,16)}</td>
+          <td style="padding:8px">${x.tmaMin||0}</td>
+          <td style="padding:8px">${x.resolucaoHoras||0}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="10" style="padding:12px;color:var(--text-secondary)">Sem resultados.</td></tr>';
+    }
+
+    if ($('relChamadosInfo')) {
+      $('relChamadosInfo').textContent = `Exibindo ${filtered.length} de ${relItems.length} chamados`;
+    }
+  }
+
+  function relExportCSV(){
+    if (!relItems || !relItems.length) return;
+    const rows = [];
+    rows.push(['ID','Status','Prioridade','Categoria','Unidade','Responsavel','Criado','Atualizado','TMA(min)','Resolucao(h)']);
+    const body = $('relChamadosBody');
+    const fs = $('relFStatus') ? $('relFStatus').value : 'TODOS';
+    const fp = $('relFPrio') ? $('relFPrio').value : 'TODOS';
+    const fc = $('relFCat') ? $('relFCat').value : 'TODOS';
+    const fu = $('relFUn') ? $('relFUn').value : 'TODOS';
+    const fr = $('relFResp') ? $('relFResp').value : 'TODOS';
+    const ft = $('relFText') ? $('relFText').value.trim().toLowerCase() : '';
+    const filtered = relItems.filter(x=>{
+      if (fs !== 'TODOS' && x.status !== fs) return false;
+      if (fp !== 'TODOS' && x.prioridade !== fp) return false;
+      if (fc !== 'TODOS' && x.categoria !== fc) return false;
+      if (fu !== 'TODOS' && x.unidade !== fu) return false;
+      if (fr !== 'TODOS' && x.responsavel !== fr) return false;
+      if (ft) {
+        const blob = [x.id,x.status,x.prioridade,x.categoria,x.unidade,x.responsavel,x.solicitante,x.titulo].join(' ').toLowerCase();
+        if (!blob.includes(ft)) return false;
+      }
+      return true;
+    });
+    filtered.forEach(x=>{
+      rows.push([x.id,x.status,x.prioridade,x.categoria,x.unidade,x.responsavel,x.criadoEm,x.atualizadoEm,x.tmaMin,x.resolucaoHoras]);
+    });
+
+    const csv = rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(';')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'relatorio_detalhado.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function relRun(){
+    console.log('[relRun] Iniciando relatório...');
+    const inicio = $('relIni').value;
+    const fim = $('relFim').value;
+    console.log('[relRun] Período:', inicio, 'até', fim);
+    
+    const pack = await api('ti_report', { inicio, fim });
+    relLastPack = pack;
+    console.log('[relRun] Resposta API:', pack);
+
+    if (!pack || !pack.ok) return alert('Falha ao gerar relatório.');
+
+    const ps = pack.porStatus || {};
+    const pp = pack.porPrioridade || {};
+    const est = pack.estatisticas || {};
+    const det = pack.detalhes || {};
+    relItems = det.items || [];
+
+    console.log('[relRun] Estatísticas recebidas:', est);
+    
+    const total = pack.total || 0;
+    $('rk_total').textContent = total;
+
+    const ab = (ps['ABERTO']||0);
+    const em = (ps['EM ANDAMENTO']||0);
+    const pe = (ps['PENDENTE']||0) + (ps['AGUARDANDO']||0);
+    const co = (ps['CONCLUIDO']||0) + (ps['CONCLUÍDO']||0) + (ps['RESOLVIDO']||0);
+
+    $('rk_abertos').textContent = ab;
+    $('rk_and').textContent = em;
+    $('rk_pend').textContent = pe;
+    $('rk_conc').textContent = co;
+
+    // Exibir estatísticas avançadas
+    try {
+      const estDiv = $('relEstatisticas');
+      console.log('[relRun] estDiv existe?', !!estDiv);
+      if (estDiv && est && Object.keys(est).length > 0) {
+        console.log('[relRun] Exibindo estatísticas');
+        estDiv.style.display = 'grid';
+        const tmaEl = $('rk_tma');
+        const resEl = $('rk_resolucao');
+        const taxaEl = $('rk_taxa');
+        
+        if (tmaEl) tmaEl.textContent = (est.tma && est.tma.media > 0) ? est.tma.media.toFixed(1) + ' min' : '—';
+        if (resEl) resEl.textContent = (est.tempoResolucao && est.tempoResolucao.media > 0) ? est.tempoResolucao.media.toFixed(1) + ' h' : '—';
+        if (taxaEl) taxaEl.textContent = (est.taxaResolucao || 0) + '%';
+        console.log('[relRun] Estatísticas exibidas');
+      }
+    } catch(e) {
+      console.log('[relRun] Erro ao exibir estatísticas:', e);
+    }
+
+    $('relFoot').textContent = `Período: ${inicio || '—'} até ${fim || '—'} • Total: ${total}`;
+
+    try {
+      const stLabels = Object.keys(ps);
+      const stData = stLabels.map(k=>ps[k]);
+
+      const prLabels = Object.keys(pp);
+      const prData = prLabels.map(k=>pp[k]);
+
+      if (chartStatus) chartStatus.destroy();
+      if (chartPrio) chartPrio.destroy();
+
+      chartStatus = new Chart($('cStatus'), {
+        type: 'bar',
+        data: { labels: stLabels, datasets: [{ label: 'Chamados', data: stData, backgroundColor:'#3b82f6' }] },
+        options: { responsive:true, plugins:{ legend:{ display:false } } }
+      });
+
+      chartPrio = new Chart($('cPrio'), {
+        type: 'bar',
+        data: { labels: prLabels, datasets: [{ label: 'Chamados', data: prData, backgroundColor:'#8b5cf6' }] },
+        options: { responsive:true, plugins:{ legend:{ display:false } } }
+      });
+      console.log('[relRun] Gráficos criados');
+    } catch(e) {
+      console.log('[relRun] Erro ao gerar gráficos:', e);
+      alert('Erro ao gerar gráficos: ' + e.message);
+    }
+
+    try {
+      const qWrap = $('relQuantitativos');
+      if (qWrap) {
+        const catHtml = renderTopList(pack.porCategoria, 6);
+        const uniHtml = renderTopList(pack.porUnidade, 6);
+        const respHtml = renderTopList(pack.porResponsavel, 6);
+        $('relCatList').innerHTML = catHtml;
+        $('relUniList').innerHTML = uniHtml;
+        $('relRespList').innerHTML = respHtml;
+        qWrap.style.display = 'block';
+      }
+    } catch(e) {
+      console.log('[relRun] Erro ao montar quantitativos:', e);
+    }
+
+    try {
+      const detWrap = $('relDetalhes');
+      if (detWrap) {
+        const filterText = $('relDetFiltro') ? $('relDetFiltro').value : '';
+        $('relDetStatus').innerHTML = renderMapTable(pack.porStatus, filterText);
+        $('relDetPrio').innerHTML = renderMapTable(pack.porPrioridade, filterText);
+        $('relDetCat').innerHTML = renderMapTable(pack.porCategoria, filterText);
+        $('relDetUni').innerHTML = renderMapTable(pack.porUnidade, filterText);
+        $('relDetResp').innerHTML = renderMapTable(pack.porResponsavel, filterText);
+        detWrap.style.display = 'block';
+      }
+    } catch(e) {
+      console.log('[relRun] Erro ao montar detalhamento:', e);
+    }
+
+    try {
+      const insWrap = $('relInsights');
+      if (insWrap) {
+        $('relTmaResp').innerHTML = renderAvgList(det.tmaPorResponsavel, 'min', 8);
+        $('relTmaUni').innerHTML = renderAvgList(det.tmaPorUnidade, 'min', 8);
+        $('relTopProb').innerHTML = renderAvgList(det.resolucaoPorCategoria, 'h', 8);
+        $('relRankLocais').innerHTML = renderRankList(det.rankingLocais, 8);
+        insWrap.style.display = 'block';
+      }
+    } catch(e) {
+      console.log('[relRun] Erro ao montar insights:', e);
+    }
+
+    try {
+      const wrap = $('relChamadosDetalhados');
+      if (wrap) {
+        const statuses = Array.from(new Set(relItems.map(x=>x.status))).sort();
+        const prios = Array.from(new Set(relItems.map(x=>x.prioridade))).sort();
+        const cats = Array.from(new Set(relItems.map(x=>x.categoria))).sort();
+        const unis = Array.from(new Set(relItems.map(x=>x.unidade))).sort();
+        const resps = Array.from(new Set(relItems.map(x=>x.responsavel))).sort();
+        relBuildSelect($('relFStatus'), 'Status', statuses);
+        relBuildSelect($('relFPrio'), 'Prioridade', prios);
+        relBuildSelect($('relFCat'), 'Categoria', cats);
+        relBuildSelect($('relFUn'), 'Unidade', unis);
+        relBuildSelect($('relFResp'), 'Responsavel', resps);
+        wrap.style.display = 'block';
+        relApplyFilters();
+      }
+    } catch(e) {
+      console.log('[relRun] Erro ao montar tabela detalhada:', e);
+    }
+
+    // Carregar estatísticas de máquinas por local
+    try {
+      console.log('[relRun] Carregando máquinas por local');
+      const maqPack = await api('maq_stats');
+      console.log('[relRun] Resposta máquinas:', maqPack);
+      
+      const maqDiv = $('relMaquinas');
+      if (maqDiv && maqPack && maqPack.ok && maqPack.locais && maqPack.locais.length > 0) {
+        console.log('[relRun] Exibindo máquinas por local');
+        maqDiv.style.display = 'block';
+        const totalEquip = maqPack.locais.reduce((s,l)=>s+(l.total||0),0);
+        const typeTotals = {};
+        maqPack.locais.forEach(l=>{
+          (l.detalhes||[]).forEach(d=>{
+            const k = String(d.tipo||'').trim() || 'SEM TIPO';
+            typeTotals[k] = (typeTotals[k]||0) + (Number(d.quantidade)||0);
+          });
+        });
+        const tiposOrdenados = Object.entries(typeTotals).sort((a,b)=>b[1]-a[1]);
+        const resumoTipos = tiposOrdenados.map(([k,v])=>`<div style="margin:4px 0">• <b>${v}</b> ${k}</div>`).join('') || '—';
+
+        const html = `
+          <div class="card" style="margin-bottom:12px">
+            <h3>Resumo geral</h3>
+            <div style="font-size:0.9rem;color:var(--text-secondary)">Total de equipamentos: <b>${totalEquip}</b> • Locais: <b>${maqPack.locais.length}</b></div>
+            <div style="margin-top:8px;font-size:0.9rem;color:var(--text-secondary)">${resumoTipos}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:15px">
+            ${maqPack.locais.map(loc => `
+              <div style="background: linear-gradient(135deg, var(--card-bg), var(--card-bg-hover)); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
+                <details>
+                  <summary style="font-weight:900; font-size:1.05rem; color:var(--text-primary); cursor:pointer;">📍 ${loc.local} (${loc.total})</summary>
+                  <div style="border-top: 1px solid var(--border-color); padding-top:10px; font-size:0.85rem; margin-top:8px">
+                    ${(loc.detalhes||[]).map(d => `<div style="margin:5px 0; color:var(--text-secondary)">▸ <b>${d.quantidade}</b> ${d.tipo}</div>`).join('') || '—'}
+                  </div>
+                </details>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        const lista = $('relMaquinasLista');
+        if (lista) lista.innerHTML = html;
+        console.log('[relRun] Máquinas exibidas');
+      } else if (maqDiv) {
+        console.log('[relRun] Nenhuma máquina para exibir');
+        maqDiv.style.display = 'none';
+      }
+    } catch(e) {
+      console.log('[relRun] Erro ao carregar máquinas:', e);
+    }
+    
+    console.log('[relRun] Relatório concluído');
+  }
+
+  function bindRelatoriosEvents(){
+    if ($('relBack')) $('relBack').onclick = ()=>go('ti');
+    if ($('relRun')) $('relRun').onclick = relRun;
+    if ($('relIni') && !$('relIni').value && $('relFim') && !$('relFim').value) setTodayRange();
+    if ($('relDetFiltro')) $('relDetFiltro').oninput = ()=>{
+      if (!relLastPack || !relLastPack.ok) return;
+      const filterText = $('relDetFiltro').value;
+      $('relDetStatus').innerHTML = renderMapTable(relLastPack.porStatus, filterText);
+      $('relDetPrio').innerHTML = renderMapTable(relLastPack.porPrioridade, filterText);
+      $('relDetCat').innerHTML = renderMapTable(relLastPack.porCategoria, filterText);
+      $('relDetUni').innerHTML = renderMapTable(relLastPack.porUnidade, filterText);
+      $('relDetResp').innerHTML = renderMapTable(relLastPack.porResponsavel, filterText);
+    };
+    if ($('relFStatus')) $('relFStatus').onchange = relApplyFilters;
+    if ($('relFPrio')) $('relFPrio').onchange = relApplyFilters;
+    if ($('relFCat')) $('relFCat').onchange = relApplyFilters;
+    if ($('relFUn')) $('relFUn').onchange = relApplyFilters;
+    if ($('relFResp')) $('relFResp').onchange = relApplyFilters;
+    if ($('relFText')) $('relFText').oninput = relApplyFilters;
+    if ($('relExportCsv')) $('relExportCsv').onclick = relExportCSV;
+  }
+
+  function bindMaquinasEvents(){
+    if ($('maq_btnVoltar')) $('maq_btnVoltar').onclick = ()=>go('ti');
+    if ($('maq_btnNovo')) $('maq_btnNovo').onclick = maq_abrirModalNovo;
+    if ($('maq_btnStats')) $('maq_btnStats').onclick = ()=>go('ti_maquinas_stats');
+    if ($('maq_btnFiltrar')) $('maq_btnFiltrar').onclick = (e)=>maq_carregarMaquinas(e.target);
+    if ($('maq_btnLimpar')) $('maq_btnLimpar').onclick = ()=>{
+      $('maq_inputBusca').value = '';
+      $('maq_inputLocal').value = '';
+      $('maq_info').innerText = '—';
+      if ($('maq_listBody')) $('maq_listBody').innerHTML = '';
+      $('maq_stats_total').textContent = '—';
+      $('maq_stats_locais').textContent = '—';
+      $('maq_stats_tipos').textContent = '—';
+      $('maq_stats_top_local').textContent = '—';
+      $('maq_stats_top_tipo').textContent = '—';
+      $('maq_stats_top_marca').textContent = '—';
+      $('maq_stats_locais_table').innerHTML = '—';
+      $('maq_stats_tipos_table').innerHTML = '—';
+      $('maq_stats_marca_table').innerHTML = '—';
+    };
+    if ($('maq_btnSalvar')) $('maq_btnSalvar').onclick = (e)=>maq_salvarMaquina(e.target);
+    if ($('maq_btnConfirmarMover')) $('maq_btnConfirmarMover').onclick = (e)=>maq_confirmarMover(e.target);
+
+    if ($('maq_localAdd')) $('maq_localAdd').onclick = ()=>{
+      const v = $('maq_localInput') ? $('maq_localInput').value : '';
+      maq_addLocal(v);
+      if ($('maq_localInput')) $('maq_localInput').value = '';
+    };
+    if ($('maq_localInput')) {
+      $('maq_localInput').onkeydown = (ev)=>{
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          const v = $('maq_localInput').value;
+          maq_addLocal(v);
+          $('maq_localInput').value = '';
+        }
+      };
+    }
+
+    if ($('maq_tipoAdd')) $('maq_tipoAdd').onclick = ()=>{
+      const v = $('maq_tipoInput') ? $('maq_tipoInput').value : '';
+      maq_addTipo(v);
+      if ($('maq_tipoInput')) $('maq_tipoInput').value = '';
+    };
+    if ($('maq_tipoInput')) {
+      $('maq_tipoInput').onkeydown = (ev)=>{
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          const v = $('maq_tipoInput').value;
+          maq_addTipo(v);
+          $('maq_tipoInput').value = '';
+        }
+      };
+    }
+
+
+    if ($('maq_modalClose')) $('maq_modalClose').onclick = ()=>{
+      $('maq_modal').classList.remove('flex');
+      $('maq_modal').classList.add('hidden');
+    };
+    if ($('maq_modalMoverClose')) $('maq_modalMoverClose').onclick = ()=>{
+      $('maq_modalMover').classList.remove('flex');
+      $('maq_modalMover').classList.add('hidden');
+    };
+    if ($('maq_modalHistClose')) $('maq_modalHistClose').onclick = ()=>{
+      $('maq_modalHist').classList.remove('flex');
+      $('maq_modalHist').classList.add('hidden');
+    };
+  }
+
+  function bindMaquinasStatsEvents(){
+    if ($('maq_statsVoltar')) $('maq_statsVoltar').onclick = ()=>go('ti_maquinas');
+  }
+
+  // ===== Tema Claro/Escuro =====
+  function toggleTheme(){
+    const currentTheme = document.body.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    document.body.setAttribute('data-theme', newTheme);
+    localStorage.setItem('ti_theme', newTheme);
+    $('themeIcon').textContent = newTheme === 'light' ? '☀️' : '🌙';
+  }
+
+  function loadTheme(){
+    const savedTheme = localStorage.getItem('ti_theme') || 'dark';
+    document.body.setAttribute('data-theme', savedTheme);
+    if ($('themeIcon')) {
+      $('themeIcon').textContent = savedTheme === 'light' ? '☀️' : '🌙';
+    }
+  }
+
+  // ===== Ações Rápidas de Status =====
+  async function quickStatus(id, newStatus) {
+    if (!confirm(`Alterar status do chamado ${id} para "${newStatus}"?`)) return;
+    
+    try {
+      const det = await api('ti_get', { id });
+      if (!det || !det.ok) {
+        alert('Erro ao buscar chamado');
+        return;
+      }
+
+      const item = det.item || {};
+      const payload = {
+        id,
+        status: newStatus,
+        prioridade: item.prioridade,
+        categoria: item.categoria,
+        unidade: item.unidade,
+        solicitante: item.solicitante,
+        contato: item.contato,
+        titulo: item.titulo,
+        descricao: item.descricao,
+        responsavel: item.responsavel || tecnicoAtual,
+        previsao: item.previsao,
+        ultimaAcao: `Status alterado para ${newStatus} via ação rápida`
+      };
+
+      const upd = await api('ti_update', payload);
+      if (!upd || !upd.ok) {
+        alert(upd && upd.msg ? upd.msg : 'Erro ao atualizar');
+        return;
+      }
+
+      await loadList();
+    } catch(e) {
+      alert('Erro: ' + e.message);
+    }
+  }
+
+  // ===== Wire events =====
+  document.addEventListener('click', (ev)=>{
+    const tr = ev.target.closest('tr[data-id]');
+    if (tr) openChamado(tr.getAttribute('data-id'));
+  });
+
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    // Carregar tema salvo
+    loadTheme();
+
+    // Handle browser back/forward buttons
+    window.addEventListener('popstate', (e) => {
+      const view = new URLSearchParams(window.location.search).get('view') || 'ti';
+      go(view);
+    });
+    
+    // Se por algum motivo vier sem "show", garante exibição:
+    if (VIEW === 'ti') $('tiApp').classList.add('show');
+    if (VIEW === 'ti_tv') $('tvApp').classList.add('show');
+    if (VIEW === 'ti_relatorios') $('relApp').classList.add('show');
+    if (VIEW === 'ti_maquinas') $('maqApp').classList.add('show');
+    if (VIEW === 'ti_maquinas_stats') $('maqStatsApp').classList.add('show');
+
+    if (VIEW === 'ti'){
+      await loadBoot();
+      await loadList();
+
+      // Botão de tema
+      if ($('themeToggle')) {
+        $('themeToggle').onclick = toggleTheme;
+      }
+
+      $('ti_btnRefresh').onclick = loadList;
+      $('ti_btnAuto').onclick = toggleAuto;
+      $('ti_btnMonitor').onclick = ()=>go('ti_tv');
+      $('ti_btnRel').onclick = ()=>go('ti_relatorios');
+      $('ti_btnMaquinas').onclick = ()=>go('ti_maquinas');
+      $('ti_btnSair').onclick = ()=>go('login');
+
+      $('ti_btnFiltrar').onclick = loadList;
+      $('ti_btnLimpar').onclick = ()=>{
+        $('ti_q').value=''; $('ti_status').value=''; $('ti_prio').value=''; $('ti_unidade').value='';
+        loadList();
+      };
+
+      $('ti_btnTrocarMe').onclick = openTecModal;
+
+      $('ti_btnNovo').onclick = ()=>{
+        currentId = '';
+        $('ti_mId').textContent = 'NOVO';
+        $('ti_mTitle').textContent = 'Novo chamado';
+        $('ti_mSub').textContent = 'Preencha e salve';
+
+        $('m_status').value = 'ABERTO';
+        $('m_prio').value = 'NORMAL';
+        $('m_cat').value = '';
+        $('m_unidade').value = '';
+        $('m_solic').value = '';
+        $('m_contato').value = '';
+        $('m_titulo').value = '';
+        $('m_desc').value = '';
+        $('m_resp').value = tecnicoAtual || '';
+        $('m_prev').value = '';
+        $('m_last').value = 'Criado no painel';
+
+        $('ti_histBox').classList.add('hidden');
+        $('ti_histBox').innerHTML = '';
+        showModal($('ti_modal'), true);
+      };
+
+      $('ti_mClose').onclick = ()=>showModal($('ti_modal'), false);
+      $('ti_mSave').onclick = ()=>saveChamado(!currentId);
+      $('ti_mHist').onclick = loadHist;
+
+      $('ti_tecClose').onclick = ()=>showModal($('ti_modalTec'), false);
+      $('ti_modalTec').addEventListener('click',(e)=>{ if(e.target=== $('ti_modalTec')) showModal($('ti_modalTec'), false); });
+
+      $('ti_modal').addEventListener('click',(e)=>{ if(e.target=== $('ti_modal')) showModal($('ti_modal'), false); });
+    }
+
+    if (VIEW === 'ti_tv'){
+      $('tvBack').onclick = ()=>go('ti');
+      $('tvRefresh').onclick = tvLoad;
+      $('tvMute').onclick = ()=>{
+        tvMuted = !tvMuted;
+        $('tvMute').textContent = tvMuted ? '🔕 Som: OFF' : '🔔 Som: ON';
+      };
+      await tvLoad();
+      startTvRefresh(); // Usar função para iniciar
+      window.addEventListener('beforeunload', stopTvRefresh);
+    }
+
+    if (VIEW === 'ti_relatorios'){
+      bindRelatoriosEvents();
+      await relRun();
+    }
+
+    // ========== MÁQUINAS ==========
+    if (VIEW === 'ti_maquinas'){
+      bindMaquinasEvents();
+      await maq_carregarMaquinas();
+      await maq_carregarStats();
+    }
+
+    if (VIEW === 'ti_maquinas_stats'){
+      bindMaquinasStatsEvents();
+      await maq_carregarMaquinas();
+      await maq_carregarStats();
+    }
+  });
+
+  // ========== Funções Máquinas ==========
+  let maq_editandoID = null;
+  let maq_itemsCache = [];
+
+
+  function btnLoading(btn, on, text){
+    if(!btn) return;
+    if(on){
+      btn.dataset._label = btn.innerText;
+      btn.innerText = text || 'Aguarde...';
+      btn.classList.add('btn-loading');
+      btn.disabled = true;
+      return;
+    }
+    btn.innerText = btn.dataset._label || btn.innerText;
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+  }
+
+  async function maq_carregarMaquinas(btn){
+    try {
+      if (btn) btnLoading(btn, true, 'Carregando...');
+      let q = $('maq_inputBusca') ? $('maq_inputBusca').value.trim() : '';
+      let local = $('maq_inputLocal') ? $('maq_inputLocal').value.trim() : '';
+      let res = await api('maq_list', {q, local});
+      if(!res.ok){
+        alert('Erro ao carregar máquinas: '+(res.msg||res.erro||'Erro desconhecido'));
+        if (btn) btnLoading(btn, false);
+        return;
+      }
+      let maquinas = res.items||[];
+      maq_itemsCache = maquinas;
+      if ($('maq_info')) $('maq_info').innerText = `${maquinas.length} máquina(s) encontrada(s)`;
+      maq_renderMaquinas(maquinas);
+      await maq_carregarStats();
+      if (btn) btnLoading(btn, false);
+    } catch(er){
+      if (btn) btnLoading(btn, false);
+      alert('Erro: '+er.message);
+    }
+  }
+
+  function maq_renderStats(){
+    const totalEl = $('maq_stats_total');
+    const locaisEl = $('maq_stats_locais');
+    const tiposEl = $('maq_stats_tipos');
+    const topLocalEl = $('maq_stats_top_local');
+    const topTipoEl = $('maq_stats_top_tipo');
+    const topMarcaEl = $('maq_stats_top_marca');
+    const locaisTable = $('maq_stats_locais_table');
+    const tiposTable = $('maq_stats_tipos_table');
+    const marcaTable = $('maq_stats_marca_table');
+    if (!totalEl || !locaisEl || !tiposEl || !topLocalEl || !topTipoEl || !topMarcaEl || !locaisTable || !tiposTable || !marcaTable) return;
+
+    const items = (maq_itemsCache || []);
+    if (!items.length) {
+      totalEl.textContent = '—';
+      locaisEl.textContent = '—';
+      tiposEl.textContent = '—';
+      topLocalEl.textContent = '—';
+      topTipoEl.textContent = '—';
+      topMarcaEl.textContent = '—';
+      locaisTable.innerHTML = '—';
+      tiposTable.innerHTML = '—';
+      marcaTable.innerHTML = '—';
+      return;
+    }
+
+    const countBy = (list, keyFn) => {
+      const map = {};
+      list.forEach(x=>{
+        const k = keyFn(x);
+        if (!k) return;
+        map[k] = (map[k]||0) + 1;
+      });
+      return map;
+    };
+
+    const byLocal = countBy(items, x=>String(x.localAtual||'').trim() || 'SEM LOCAL');
+    const byTipo = countBy(items, x=>String(x.tipoMaquina||'').trim() || 'SEM TIPO');
+    const byMarcaModelo = countBy(items, x=>{
+      const marca = String(x.marca||'').trim();
+      const modelo = String(x.modelo||'').trim();
+      const nome = `${marca} ${modelo}`.trim();
+      return nome || null;
+    });
+
+    const topEntry = (map) => {
+      const rows = Object.entries(map).sort((a,b)=>b[1]-a[1]);
+      if (!rows.length) return '—';
+      const [k,v] = rows[0];
+      return `${v} ${k}`;
+    };
+
+    const esc = (v) => String(v).replace(/[&<>\"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+    const renderList = (map) => {
+      const rows = Object.entries(map).sort((a,b)=>b[1]-a[1]);
+      return rows.length
+        ? rows.map(([k,v])=>`<div style="display:flex;justify-content:space-between;gap:8px;margin:4px 0"><span>${esc(k)}</span><b>${v}</b></div>`).join('')
+        : '—';
+    };
+
+    totalEl.textContent = String(items.length);
+    locaisEl.textContent = String(Object.keys(byLocal).length);
+    tiposEl.textContent = String(Object.keys(byTipo).length);
+    topLocalEl.textContent = topEntry(byLocal);
+    topTipoEl.textContent = topEntry(byTipo);
+    topMarcaEl.textContent = topEntry(byMarcaModelo);
+    locaisTable.innerHTML = renderList(byLocal);
+    tiposTable.innerHTML = renderList(byTipo);
+    marcaTable.innerHTML = renderList(byMarcaModelo);
+  }
+
+  async function maq_carregarStats(){
+    try {
+      maq_renderStats();
+    } catch(e) {
+      $('maq_stats_total').textContent = '—';
+      $('maq_stats_locais').textContent = '—';
+      $('maq_stats_tipos').textContent = '—';
+      $('maq_stats_top_local').textContent = '—';
+      $('maq_stats_top_tipo').textContent = '—';
+      $('maq_stats_top_marca').textContent = '—';
+      $('maq_stats_locais_table').innerHTML = '—';
+      $('maq_stats_tipos_table').innerHTML = '—';
+      $('maq_stats_marca_table').innerHTML = '—';
+      console.log('[maq_carregarStats] Erro:', e);
+    }
+  }
+
+  function maq_renderMaquinas(arr){
+    const body = $('maq_listBody');
+    if (!body) return;
+    if(!arr.length){
+      body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:20px">Nenhuma maquina encontrada</td></tr>';
+      return;
+    }
+
+    body.innerHTML = arr.map(m=>`
+      <tr>
+        <td>${m.id||'—'}</td>
+        <td>${m.codigoGoverno||'—'}</td>
+        <td>${m.tipoMaquina||'—'}</td>
+        <td>${m.localAtual||'—'}</td>
+        <td>${m.dataLocal ? (m.dataLocal||'').toString().replace('T',' ').slice(0,16) : '—'}</td>
+        <td><small>${m.observacoes||'—'}</small></td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button onclick="maq_editar('${m.id}', this)" style="padding:6px 8px;border-radius:6px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);cursor:pointer;font-size:0.8em;">Editar</button>
+            <button onclick="maq_abrirModalMover('${m.id}', this)" style="padding:6px 8px;border-radius:6px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);cursor:pointer;font-size:0.8em;">Mover</button>
+            <button onclick="maq_verHistorico('${m.id}', this)" style="padding:6px 8px;border-radius:6px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);cursor:pointer;font-size:0.8em;">Historico</button>
+            <button onclick="maq_excluir('${m.id}', this)" style="padding:6px 8px;border-radius:6px;background:#7f1d1d;border:1px solid #991b1b;color:#fee2e2;cursor:pointer;font-size:0.8em;">Excluir</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function maq_editar(id, btn){
+    try {
+      btnLoading(btn, true, 'Abrindo...');
+      let res = await api('maq_get', {id});
+      if(!res.ok){
+        alert('Erro: '+(res.msg||res.erro||'Erro desconhecido'));
+        btnLoading(btn, false);
+        return;
+      }
+      let m = res.item;
+      maq_editandoID = id;
+      $('maq_modalTitle').innerText = 'Editar Máquina';
+      $('maq_inputCodigo').value = m.codigoGoverno||'';
+      $('maq_inputTipo').value = m.tipoMaquina||'';
+      $('maq_inputLocalAtual').value = m.localAtual||'';
+      $('maq_inputObs').value = m.observacoes||'';
+      if ($('maq_inputMarca')) $('maq_inputMarca').value = m.marca||'';
+      if ($('maq_inputModelo')) $('maq_inputModelo').value = m.modelo||'';
+      maq_renderLocais();
+      maq_renderTipos();
+      $('maq_modal').classList.remove('hidden');
+      $('maq_modal').classList.add('flex');
+      btnLoading(btn, false);
+    } catch(er){
+      btnLoading(btn, false);
+      alert('Erro: '+er.message);
+    }
+  }
+
+  function maq_abrirModalNovo(){
+    maq_editandoID = null;
+    $('maq_modalTitle').innerText = 'Nova Máquina';
+    $('maq_inputCodigo').value = '';
+    $('maq_inputTipo').value = '';
+    $('maq_inputLocalAtual').value = '';
+    $('maq_inputObs').value = '';
+    if ($('maq_inputMarca')) $('maq_inputMarca').value = '';
+    if ($('maq_inputModelo')) $('maq_inputModelo').value = '';
+    maq_renderLocais();
+    maq_renderTipos();
+    $('maq_modal').classList.remove('hidden');
+    $('maq_modal').classList.add('flex');
+  }
+
+  function maq_getLocais(){
+    try{
+      const raw = localStorage.getItem('maq_locais') || '[]';
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    }catch(_){
+      return [];
+    }
+  }
+
+  function maq_getTipos(){
+    try{
+      const raw = localStorage.getItem('maq_tipos') || '[]';
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    }catch(_){
+      return [];
+    }
+  }
+
+  function maq_setTipos(arr){
+    try{
+      localStorage.setItem('maq_tipos', JSON.stringify(arr || []));
+    }catch(_){
+    }
+  }
+
+  function maq_addTipo(nome){
+    const n = String(nome||'').trim();
+    if (!n) return;
+    const list = maq_getTipos();
+    if (!list.find(x => String(x).toLowerCase() === n.toLowerCase())) {
+      list.unshift(n);
+    }
+    maq_setTipos(list.slice(0, 30));
+    maq_renderTipos();
+  }
+
+  function maq_applyTipo(nome){
+    $('maq_inputTipo').value = String(nome||'');
+  }
+
+  function maq_renderTipos(){
+    const wrap = $('maq_tipoChips');
+    if (!wrap) return;
+    const list = maq_getTipos();
+    if (!list.length) {
+      wrap.innerHTML = '<span style="color:var(--text-secondary);font-size:0.85rem">Sem tipos salvos</span>';
+      return;
+    }
+    wrap.innerHTML = list.map(n=>
+      `<button type="button" onclick="maq_applyTipo('${String(n).replace(/'/g,'&#39;')}')" style="padding:4px 8px;border-radius:999px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.8rem">${n}</button>`
+    ).join('');
+  }
+
+  function maq_setLocais(arr){
+    try{
+      localStorage.setItem('maq_locais', JSON.stringify(arr || []));
+    }catch(_){
+    }
+  }
+
+  function maq_addLocal(nome){
+    const n = String(nome||'').trim();
+    if (!n) return;
+    const list = maq_getLocais();
+    if (!list.find(x => String(x).toLowerCase() === n.toLowerCase())) {
+      list.unshift(n);
+    }
+    maq_setLocais(list.slice(0, 20));
+    maq_renderLocais();
+  }
+
+  function maq_applyLocal(nome){
+    $('maq_inputLocalAtual').value = String(nome||'');
+  }
+
+  function maq_renderLocais(){
+    const wrap = $('maq_localChips');
+    if (!wrap) return;
+    const list = maq_getLocais();
+    if (!list.length) {
+      wrap.innerHTML = '<span style="color:var(--text-secondary);font-size:0.85rem">Sem locais salvos</span>';
+      return;
+    }
+    wrap.innerHTML = list.map(n=>
+      `<button type="button" onclick="maq_applyLocal('${String(n).replace(/'/g,'&#39;')}')" style="padding:4px 8px;border-radius:999px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.8rem">${n}</button>`
+    ).join('');
+  }
+
+  async function maq_salvarMaquina(btn){
+    try {
+      btnLoading(btn, true, 'Salvando...');
+      let codigoGoverno = $('maq_inputCodigo').value.trim();
+      let tipoMaquina = $('maq_inputTipo').value.trim();
+      let localAtual = $('maq_inputLocalAtual').value.trim();
+      let observacoes = $('maq_inputObs').value.trim();
+      let marca = $('maq_inputMarca') ? $('maq_inputMarca').value.trim() : '';
+      let modelo = $('maq_inputModelo') ? $('maq_inputModelo').value.trim() : '';
+
+      if(!codigoGoverno || !tipoMaquina || !localAtual){
+        btnLoading(btn, false);
+        alert('Preencha código, tipo e local');
+        return;
+      }
+
+      maq_addTipo(tipoMaquina);
+      maq_addLocal(localAtual);
+      let apiName = maq_editandoID?'maq_update':'maq_create';
+      let payload = {codigoGoverno, tipoMaquina, localAtual, observacoes, marca, modelo};
+      if(maq_editandoID) payload.id = maq_editandoID;
+
+      let res = await api(apiName, payload);
+      if(!res.ok){
+        btnLoading(btn, false);
+        alert('Erro: '+(res.msg||res.erro||'Erro desconhecido'));
+        return;
+      }
+
+      $('maq_modal').classList.remove('flex');
+      $('maq_modal').classList.add('hidden');
+      AppCache.clear();
+      await maq_carregarMaquinas();
+      btnLoading(btn, false);
+    } catch(er){
+      btnLoading(btn, false);
+      alert('Erro: '+er.message);
+    }
+  }
+
+  let maq_moverID = null;
+
+  async function maq_abrirModalMover(id, btn){
+    try {
+      btnLoading(btn, true, 'Abrindo...');
+      let res = await api('maq_get', {id});
+      if(!res.ok){
+        alert('Erro: '+(res.msg||res.erro||'Erro desconhecido'));
+        btnLoading(btn, false);
+        return;
+      }
+      let m = res.item;
+      maq_moverID = id;
+      $('maq_moverInfo').innerText = m.id||'—';
+      $('maq_moverAtual').innerText = m.localAtual||'—';
+      $('maq_inputNovoLocal').value = '';
+      $('maq_inputMotivo').value = '';
+      $('maq_modalMover').classList.remove('hidden');
+      $('maq_modalMover').classList.add('flex');
+      btnLoading(btn, false);
+    } catch(er){
+      btnLoading(btn, false);
+      alert('Erro: '+er.message);
+    }
+  }
+
+  async function maq_confirmarMover(btn){
+    try {
+      btnLoading(btn, true, 'Movendo...');
+      let novoLocal = $('maq_inputNovoLocal').value.trim();
+      if(!novoLocal){
+        btnLoading(btn, false);
+        alert('Informe o novo local');
+        return;
+      }
+      let res = await api('maq_move', {id:maq_moverID, novoLocal});
+      if(!res.ok){
+        btnLoading(btn, false);
+        alert('Erro: '+(res.msg||res.erro||'Erro desconhecido'));
+        return;
+      }
+      $('maq_modalMover').classList.remove('flex');
+      $('maq_modalMover').classList.add('hidden');
+      AppCache.clear();
+      await maq_carregarMaquinas();
+      btnLoading(btn, false);
+    } catch(er){
+      btnLoading(btn, false);
+      alert('Erro: '+er.message);
+    }
+  }
+
+  async function maq_verHistorico(id, btn){
+    try {
+      btnLoading(btn, true, 'Carregando...');
+      let res = await api('maq_historico', {id});
+      if(!res.ok){
+        alert('Erro: '+(res.msg||res.erro||'Erro desconhecido'));
+        btnLoading(btn, false);
+        return;
+      }
+      $('maq_histInfo').innerText = 'Histórico: ' + id;
+      
+      let html = '';
+      let hist = res.historico||[];
+      if(!hist.length){
+        html = '<div style="padding:20px;text-align:center;color:var(--text-secondary);">Nenhum histórico registrado</div>';
+      } else {
+        for(let h of hist){
+          html += `
+            <div class="maq-timeline-item">
+              <div class="maq-timeline-dot"></div>
+              <div class="maq-timeline-content">
+                <div style="font-weight:bold;color:var(--text-primary);">${h.localNovo||'—'}</div>
+                <div style="font-size:0.9em;color:var(--text-secondary);">${h.carimbo||'—'}</div>
+                ${h.motivo?'<div style="font-size:0.85em;color:var(--text-secondary);">Motivo: '+h.motivo+'</div>':''}
+              </div>
+            </div>
+          `;
+        }
+      }
+      $('maq_histTimeline').innerHTML = html;
+      $('maq_modalHist').classList.remove('hidden');
+      $('maq_modalHist').classList.add('flex');
+      btnLoading(btn, false);
+    } catch(er){
+      btnLoading(btn, false);
+      alert('Erro: '+er.message);
+    }
+  }
+
+  async function maq_excluir(id, btn){
+    try {
+      if(!confirm('Excluir esta máquina? Esta ação não pode ser desfeita.')) return;
+      btnLoading(btn, true, 'Excluindo...');
+      let res = await api('maq_delete', {id});
+      if(!res.ok){
+        alert('Erro: '+(res.msg||res.erro||'Erro desconhecido'));
+        btnLoading(btn, false);
+        return;
+      }
+      AppCache.clear();
+      await maq_carregarMaquinas();
+      btnLoading(btn, false);
+    } catch(er){
+      btnLoading(btn, false);
+      alert('Erro: '+er.message);
+    }
+  }
+</script>
+</body>
+</html>

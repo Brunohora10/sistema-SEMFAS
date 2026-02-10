@@ -1,0 +1,2429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <base target="_top" href="<?= (baseUrl || '') ?>">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sistema RMA — Socorro</title>
+
+  <!-- ✅ Chart.js para o Painel -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#f6f8fc;color:#0f172a}
+    .container{max-width:1150px;margin:0 auto;padding:18px}
+    header{padding:18px 18px 6px}
+    h1{margin:0;font-size:18px}
+    .sub{margin-top:4px;color:#64748b;font-size:13px}
+
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 18px rgba(15,23,42,.06);padding:16px}
+    .grid{display:grid;gap:12px}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    @media (max-width:980px){.grid.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:780px){.grid.cols-3,.grid.cols-2{grid-template-columns:1fr}}
+    @media (max-width:520px){.grid.cols-4{grid-template-columns:1fr}}
+
+    label{display:block;font-size:12px;color:#334155;margin-bottom:6px}
+    input,select,textarea{
+      width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;
+      outline:none;background:#fff;font-size:14px
+    }
+    input:focus,select:focus,textarea:focus{border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.15)}
+    textarea{min-height:90px;resize:vertical}
+
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn{
+      border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;
+      background:#0ea5e9;color:#fff;position:relative
+    }
+    .btn.secondary{background:#0f172a}
+    .btn.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
+    .btn.danger{background:#ef4444}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+
+    /* ✅ LOADING */
+    .btn.loading{opacity:.72;pointer-events:none}
+    .btn.loading::after{
+      content:"";position:absolute;right:12px;top:50%;
+      width:16px;height:16px;margin-top:-8px;
+      border:2px solid rgba(255,255,255,.7);
+      border-top-color:transparent;border-radius:50%;
+      animation:spin .8s linear infinite
+    }
+    .btn.ghost.loading::after{
+      border-color:rgba(15,23,42,.35);
+      border-top-color:transparent;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;color:#334155;font-size:12px}
+    .divider{height:1px;background:#e2e8f0;margin:12px 0}
+
+    .toast{margin-top:10px;font-size:13px}
+    .toast.ok{color:#16a34a}
+    .toast.err{color:#dc2626}
+
+    .page{display:none}
+    .page.show{display:block}
+
+    .hubTop{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .hubTitle{font-weight:900;font-size:14px;margin:0}
+    .muted{color:#64748b;font-size:12px}
+
+    .tile{
+      border:1px solid #e2e8f0;background:#fff;border-radius:16px;padding:14px;
+      cursor:pointer;transition:.12s transform,.12s box-shadow,.12s border-color;
+      min-height:80px;display:flex;flex-direction:column;justify-content:center
+    }
+    .tile:hover{transform:translateY(-1px);box-shadow:0 12px 20px rgba(15,23,42,.08);border-color:#cbd5e1}
+    .tile .t1{font-weight:900}
+    .tile .t2{font-size:12px;color:#64748b;margin-top:4px}
+    .badge{display:inline-flex;align-self:flex-start;margin-top:8px;font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid #e2e8f0;color:#334155;background:#f8fafc}
+
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #e2e8f0;padding:8px;font-size:12px}
+    th{background:#f8fafc;text-align:left}
+    td input{padding:8px;border-radius:10px}
+    .sectionTitle{font-size:13px;font-weight:900;margin:10px 0 6px}
+    .hint{font-size:12px;color:#64748b;margin:0 0 8px}
+    .small{font-size:11px;color:#64748b}
+
+    .repeatWrap{border:1px dashed #cbd5e1;border-radius:14px;padding:12px;background:#fbfdff}
+    .repeatItem{border:1px solid #e2e8f0;border-radius:14px;padding:12px;background:#fff;margin-top:10px}
+    .repeatHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+    .repeatHead b{font-size:12px}
+
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.55);z-index:50;padding:18px}
+    .modal.show{display:flex}
+    .modalCard{max-width:920px;width:100%;max-height:86vh;overflow:auto;background:#fff;border-radius:18px;border:1px solid #e2e8f0;box-shadow:0 20px 40px rgba(15,23,42,.25);padding:16px}
+    .modalTop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+    .modalTitle{font-weight:900;font-size:14px;margin:0}
+    .reviewBox{border:1px solid #e2e8f0;background:#f8fafc;border-radius:14px;padding:12px}
+    details{border:1px solid #e2e8f0;border-radius:14px;padding:10px;background:#fff;margin-top:10px}
+    summary{cursor:pointer;font-weight:800;font-size:13px}
+    .kv{width:100%;border-collapse:collapse;margin-top:8px}
+    .kv td{border:1px solid #e2e8f0;padding:8px;font-size:12px}
+    .kv td:first-child{width:55%;font-weight:700;background:#f8fafc}
+
+    .chartBox{border:1px solid #e2e8f0;border-radius:16px;padding:12px;background:#fff}
+    .chartWrap{width:100%;overflow:auto}
+    canvas{max-width:100%}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;border:1px solid #e2e8f0;border-radius:8px;padding:2px 8px;background:#f8fafc;color:#0f172a}
+
+    .tableScroll{max-height:340px;overflow:auto;border:1px solid #e2e8f0;border-radius:14px}
+    .miniBtn{font-size:12px;padding:8px 10px;border-radius:10px}
+
+    /* ✅ Linhas do painel (meta + ok) */
+    .pillline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+    .okline{margin-top:8px;font-size:13px;font-weight:800;color:#16a34a}
+    .errline{margin-top:8px;font-size:13px;font-weight:800;color:#dc2626}
+  </style>
+</head>
+
+<body>
+  <div id="rmaBootBanner" style="padding:10px 14px;background:#fef3c7;color:#92400e;font-size:12px;border-bottom:1px solid #fde68a">
+    RMA carregado. Se esta mensagem sumir e a tela ficar branca, houve erro no carregamento.
+  </div>
+  <header class="container">
+    <h1>Sistema RMA — Nossa Senhora do Socorro</h1>
+    <div class="sub">
+      Escolha competência e unidade → clique no “hubzinho” do formulário → salve na planilha •
+      <span class="kbd">Novo</span> Painel com gráficos e consultas
+    </div>
+  </header>
+
+  <main class="container grid" style="gap:14px">
+
+    <!-- BARRA FIXA -->
+    <section class="card">
+      <div class="grid cols-3">
+        <div>
+          <label>Competência (mês/ano)</label>
+          <input id="competencia" type="month" />
+        </div>
+        <div>
+          <label>Data de preenchimento</label>
+          <input id="dataPreenchimento" type="date" />
+        </div>
+        <div>
+          <label>Buscar unidade</label>
+          <input id="buscaUnidade" type="text" placeholder="Digite: CRAS, CREAS, Conselho, etc." />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <span class="pill" id="pillInfo">—</span>
+        <span class="pill" id="pillUnidade" style="display:none">Unidade: —</span>
+        <span class="pill" id="pillForm" style="display:none">Formulário: —</span>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </section>
+
+    <!-- PAGE 1: HUB UNIDADES -->
+    <section class="card page show" id="pageHome">
+      <div class="hubTop">
+        <div>
+          <p class="hubTitle">Hub de Unidades</p>
+          <div class="muted">Clique na unidade para ver os formulários dela.</div>
+        </div>
+      </div>
+
+      <div class="grid cols-4" id="unitsGrid"></div>
+    </section>
+
+    <!-- PAGE: PAINEL -->
+    <section class="card page" id="pageDashboard">
+      <div class="hubTop">
+        <div>
+          <p class="hubTitle">📊 Painel e Relatórios</p>
+          <div class="muted">Gere gráfico + tabela por formulário/indicador e copie para o Relatório de Gestão.</div>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="btnBackDash">← Voltar (Unidades)</button>
+        </div>
+      </div>
+
+      <div class="grid cols-4">
+        <div>
+          <label>Formulário</label>
+          <select id="dashForm"></select>
+        </div>
+
+        <div>
+          <label>Indicador (campo)</label>
+          <select id="dashIndicador"></select>
+        </div>
+
+        <div>
+          <label>Competência (De)</label>
+          <input id="dashCompFrom" type="month" />
+        </div>
+
+        <div>
+          <label>Competência (Até)</label>
+          <input id="dashCompTo" type="month" />
+        </div>
+
+        <div style="grid-column: span 2">
+          <label>Unidade</label>
+          <select id="dashUnidade"></select>
+        </div>
+
+        <div>
+          <label>Modo do gráfico</label>
+          <select id="dashModo">
+            <option value="SERIE">Por mês (série)</option>
+            <option value="RANK">Por unidade (total no período)</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Tipo</label>
+          <select id="dashTipoGraf">
+            <option value="line">Linha</option>
+            <option value="bar">Coluna</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnGerarDash">Gerar</button>
+        <button class="btn ghost" id="btnBaixarPng" disabled>Baixar gráfico (PNG)</button>
+        <button class="btn ghost" id="btnCarregarBase" title="Mostra linhas da BASE_FLAT">Ver linhas (BASE_FLAT)</button>
+        <span class="pill" id="dashPillSel">Indicador: —</span>
+      </div>
+
+      <!-- ✅ Linha meta (estilo do print) -->
+      <div id="linhaMeta" class="pillline"></div>
+      <!-- ✅ Linha OK com soma (estilo do print) -->
+      <div id="linhaOk" class="okline"></div>
+
+      <div class="toast" id="toastDash"></div>
+
+      <div class="divider"></div>
+
+      <div class="grid cols-2">
+        <div class="chartBox">
+          <div class="hint" style="font-weight:900;color:#0f172a">Gráfico</div>
+          <div class="chartWrap">
+            <canvas id="dashChart" height="140"></canvas>
+          </div>
+          <div class="small" style="margin-top:8px">Dica: após baixar PNG, é só inserir no Word/PDF do relatório.</div>
+        </div>
+
+        <div class="chartBox">
+          <div class="hint" style="font-weight:900;color:#0f172a">Tabela (para copiar)</div>
+          <div id="dashTableWrap" class="small">—</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="chartBox">
+        <div class="hint" style="font-weight:900;color:#0f172a">Prévia da BASE_FLAT (até 300 linhas)</div>
+        <div id="baseFlatWrap" class="small">Clique em “Ver linhas (BASE_FLAT)”.</div>
+      </div>
+    </section>
+
+    <!-- PAGE 2: HUB FORMULÁRIOS -->
+    <section class="card page" id="pageUnitForms">
+      <div class="hubTop">
+        <div>
+          <p class="hubTitle" id="unitTitle">Unidade</p>
+          <div class="muted">Agora clique no formulário que deseja preencher.</div>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="btnBackHome">← Voltar (Unidades)</button>
+        </div>
+      </div>
+
+      <div class="grid cols-4" id="formsGrid"></div>
+      <div class="toast" id="toastUnit"></div>
+    </section>
+
+    <!-- PAGE 3: FORM -->
+    <section class="card page" id="pageForm">
+      <div class="hubTop">
+        <div>
+          <p class="hubTitle" id="formTitle">Formulário</p>
+          <div class="muted">Preencha e clique em salvar. Tudo fica registrado por competência/unidade.</div>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="btnBackForms">← Voltar (Formulários)</button>
+        </div>
+      </div>
+
+      <div class="sectionTitle">Identificação</div>
+      <div class="grid cols-2">
+        <div>
+          <label>Quem preencheu (nome)</label>
+          <input id="preenchidoPorNome" type="text" placeholder="Ex.: Maria Silva" />
+        </div>
+        <div>
+          <label>Status de edição (24h)</label>
+          <input id="editStatus" type="text" value="—" readonly style="background:#f8fafc" />
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div id="formBody"></div>
+
+      <div class="divider"></div>
+
+      <div class="row">
+        <button class="btn" id="btnSalvar">Salvar</button>
+        <button class="btn ghost" id="btnRecarregarUltimo" style="display:none">Recarregar último salvo (24h)</button>
+        <button class="btn ghost" id="btnNovoRegistro" style="display:none">Criar novo registro</button>
+        <span class="pill" id="pillSaving" style="display:none">Salvando…</span>
+        <a class="pill" id="pdfLink" style="display:none" target="_blank" rel="noopener">Baixar PDF</a>
+      </div>
+      <div class="toast" id="toastSave"></div>
+    </section>
+
+  </main>
+
+  <!-- MODAL REVISÃO -->
+  <div class="modal" id="modalReview">
+    <div class="modalCard">
+      <div class="modalTop">
+        <p class="modalTitle">Revisar antes de enviar</p>
+        <button class="btn ghost" id="btnCloseReview">Fechar</button>
+      </div>
+
+      <div class="reviewBox" id="reviewHeader"></div>
+      <div id="reviewBody"></div>
+
+      <div class="divider"></div>
+      <div class="row">
+        <button class="btn ghost" id="btnVoltarRevisao">Voltar e revisar</button>
+        <button class="btn secondary" id="btnConfirmarEnvio">Confirmar e enviar</button>
+      </div>
+      <div class="toast" id="toastReview"></div>
+    </div>
+  </div>
+
+<script>
+  /********************************************************
+   * MÁSCARAS (BR)
+   ********************************************************/
+  function money(id,label){ return { type:"text", id, label, mask:"BRL", default:0 }; }
+
+  function formatBRLNumber_(n){
+    const v = Number(n || 0);
+    return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
+  }
+  function parseBRL_(s){
+    const digits = String(s||'').replace(/\D/g,'');
+    const cents = Number(digits || 0);
+    return cents / 100;
+  }
+  function applyMask_(el, f){
+    if (!el || !f || !f.mask) return;
+    const mask = String(f.mask || '').toUpperCase();
+
+    if (mask === 'BRL'){
+      el.inputMode = 'numeric';
+      if (!el.placeholder) el.placeholder = 'R$ 0,00';
+
+      const fmt = ()=>{
+        const digits = String(el.value || '').replace(/\D/g,'').slice(0, 15);
+        const cents = Number(digits || 0);
+        el.dataset.cents = String(cents);
+        el.value = formatBRLNumber_(cents / 100);
+      };
+
+      if ((el.value || '').trim() === ''){
+        el.value = formatBRLNumber_(Number(f.default || 0));
+        el.dataset.cents = String(Math.round(Number(f.default || 0) * 100));
+      } else fmt();
+
+      if (el.dataset.boundMask !== '1'){
+        el.addEventListener('input', fmt);
+        el.addEventListener('blur', ()=>{
+          if ((el.value || '').trim() === '') {
+            el.value = formatBRLNumber_(0);
+            el.dataset.cents = '0';
+          } else fmt();
+        });
+        el.dataset.boundMask = '1';
+      }
+      return;
+    }
+
+    const onlyDigits = (v)=> String(v||'').replace(/\D/g,'');
+    const masks = {
+      CPF: (d)=>{
+        d = d.slice(0,11);
+        return d
+          .replace(/^(\d{3})(\d)/,'$1.$2')
+          .replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3')
+          .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d{1,2}).*/,'$1.$2.$3-$4');
+      },
+      CEP: (d)=>{
+        d = d.slice(0,8);
+        return d.replace(/^(\d{5})(\d)/,'$1-$2');
+      },
+      DATA_BR: (d)=>{
+        d = d.slice(0,8);
+        return d
+          .replace(/^(\d{2})(\d)/,'$1/$2')
+          .replace(/^(\d{2})\/(\d{2})(\d)/,'$1/$2/$3')
+          .replace(/^(\d{2})\/(\d{2})\/(\d{4}).*/,'$1/$2/$3');
+      },
+      TEL: (d)=>{
+        d = d.slice(0,11);
+        if (d.length <= 10){
+          return d
+            .replace(/^(\d{2})(\d)/,'($1) $2')
+            .replace(/^\((\d{2})\)\s(\d{4})(\d)/,'($1) $2-$3')
+            .replace(/^\((\d{2})\)\s(\d{4})-(\d{4}).*/,'($1) $2-$3');
+        }
+        return d
+          .replace(/^(\d{2})(\d)/,'($1) $2')
+          .replace(/^\((\d{2})\)\s(\d{5})(\d)/,'($1) $2-$3')
+          .replace(/^\((\d{2})\)\s(\d{5})-(\d{4}).*/,'($1) $2-$3');
+      }
+    };
+    if (!masks[mask]) return;
+
+    const handler = ()=>{
+      const d = onlyDigits(el.value);
+      el.value = masks[mask](d);
+    };
+
+    if (el.dataset.boundMask !== '1'){
+      el.addEventListener('input', handler);
+      el.addEventListener('blur', handler);
+      el.dataset.boundMask = '1';
+    }
+    handler();
+  }
+
+  function setBtnLoading(btn, on){
+    if (!btn) return;
+    if (on) btn.classList.add('loading');
+    else btn.classList.remove('loading');
+  }
+
+  // ===== BOOT safe =====
+  function _fatal(msg){
+    try {
+      const el = document.getElementById('toast');
+      if (el){
+        el.textContent = msg;
+        el.className = 'toast err';
+      }
+    } catch(e){}
+  }
+  window.addEventListener('error', (e)=>{
+    _fatal('ERRO JS: ' + (e?.message || 'desconhecido'));
+    console.error('ERRO JS', e.error || e);
+  });
+  window.addEventListener('unhandledrejection', (e)=>{
+    const m = e?.reason?.message || e?.reason || 'desconhecido';
+    _fatal('ERRO PROMISE: ' + m);
+    console.error('PROMISE', e.reason);
+  });
+
+  function sget(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function sset(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+
+  function genRequestId(){
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+      const r = (crypto?.getRandomValues ? crypto.getRandomValues(new Uint8Array(1))[0] : Math.random()*256) | 0;
+      const v = (c === 'x') ? (r & 15) : ((r & 3) | 8);
+      return v.toString(16);
+    });
+  }
+
+  let BOOT = null;
+  let STATE = {
+    unidade: null,
+    formKey: null,
+    schema: null,
+    editing: false,
+    editingSubmissionId: null,
+    latestCache: null,
+    pendingPayload: null,
+    lastPdf: null
+  };
+
+  let DASH = { chart: null, lastDataset: null, selectsFilled:false };
+
+  const FORMS_LABEL = {
+    RMA_CRAS: "RMA CRAS",
+    RMA_CREAS: "RMA CREAS",
+    CADUNICO_CENTRAL: "CadÚnico (Mensal)",
+    CONSELHO_TUTELAR: "Conselho Tutelar (Mapeamento Mensal)",
+    CRAM_MENSAL: "CRAM (Relatório Mensal)",
+    CASA_CONSELHOS_MENSAL: "Casa dos Conselhos (Mensal)",
+    BEM_GERAL: "BEM (Relatório Geral)",
+    ACOLHIMENTO_MENSAL: "Unidade de Acolhimento (Mensal)",
+    RESTAURANTE_POPULAR_MENSAL: "Restaurante Popular (Mensal)"
+  };
+
+  // ========= HELPERS (schema builders) =========
+  function sec(title, fields){ return { title, fields }; }
+  function secTables(title, tables){ return { title, tables }; }
+  function secTextExplicit(id, title, label){ return { title, fields:[ {type:"textarea", id, label} ] }; }
+  function repeat(id, title, itemFields){ return { title, repeat:{ id, itemFields } }; }
+
+  function num(id,label){ return { type:"number", id, label, min:0, step:1, default:0 }; }
+  function txt(id,label){ return { type:"text", id, label }; }
+  function yesno(id,label){ return { type:"select", id, label, options:["Não","Sim"], default:"Não" }; }
+
+  function matrixTable(prefix, title, rows, cols, opts) { return { kind:"matrix", prefix, title, rows, cols, opts }; }
+
+  function labelAge(a){
+    const m = {
+      "0_6":"0–6", "7_12":"7–12", "13_17":"13–17",
+      "0_12":"0–12", "18_59":"18–59", "60p":"60+"
+    };
+    return m[a] || a;
+  }
+
+  function sexAgeTable(prefix, title, ageBands){
+    const cols = [{key:"TOTAL", label:"Total", readOnly:true}].concat(ageBands.map(a=>({key:a, label:labelAge(a)})));
+    const rows = [
+      {key:"TOTAL", label:"Total", readOnly:true},
+      {key:"M", label:"Masculino"},
+      {key:"F", label:"Feminino"}
+    ];
+    return {
+      kind:"matrix",
+      prefix,
+      title,
+      rows,
+      cols,
+      opts:{
+        computeTotalRow:true,
+        totalRowKey:"TOTAL",
+        sumRowsKeys:["M","F"],
+        computeRowTotals:true,
+        rowTotalColKey:"TOTAL",
+        rowTotalSumColKeys: ageBands
+      }
+    };
+  }
+
+  function sexOnlyTable(prefix, title){
+    const cols = [{key:"TOTAL", label:"Total"}];
+    const rows = [
+      {key:"TOTAL", label:"Total", readOnly:true},
+      {key:"M", label:"Masculino"},
+      {key:"F", label:"Feminino"}
+    ];
+    return {
+      kind:"matrix",
+      prefix,
+      title,
+      rows,
+      cols,
+      opts:{ computeTotalRow:true, totalRowKey:"TOTAL", sumRowsKeys:["M","F"] }
+    };
+  }
+
+  function sexoTotalPorLinha(prefix, title, linhas){
+    const cols = [
+      {key:"TOTAL", label:"Total", readOnly:true},
+      {key:"M", label:"Masculino"},
+      {key:"F", label:"Feminino"}
+    ];
+    const rows = linhas.map(l => ({key:l.key, label:l.label}));
+    return {
+      kind:"matrix",
+      prefix,
+      title,
+      rows,
+      cols,
+      opts:{
+        computeRowTotals:true,
+        rowTotalColKey:"TOTAL",
+        rowTotalSumColKeys:["M","F"]
+      }
+    };
+  }
+
+  // ========= SCHEMAS (corrigidos / válidos) =========
+  const SCHEMA = {
+    RMA_CRAS: {
+      versao: 2,
+      titulo: "RMA CRAS — Registro Mensal de Atendimentos",
+      sections: [
+        sec("A. Famílias em acompanhamento pelo PAIF", [
+          num("A1","A.1 Total de famílias em acompanhamento pelo PAIF"),
+          num("A2","A.2 Novas famílias inseridas no acompanhamento do PAIF no mês")
+        ]),
+        sec("B. Perfil das novas famílias inseridas no PAIF", [
+          num("B1","B.1 Famílias em situação de extrema pobreza"),
+          num("B2","B.2 Famílias beneficiárias do Programa Bolsa Família"),
+          num("B3","B.3 Famílias do PBF em descumprimento de condicionalidades"),
+          num("B4","B.4 Famílias com membros beneficiários do BPC"),
+          num("B5","B.5 Famílias com crianças/adolescentes em situação de trabalho infantil"),
+          num("B6","B.6 Famílias com crianças/adolescentes em Serviço de Acolhimento")
+        ]),
+        sec("C. Atendimentos particularizados, visitas e benefícios eventuais", [
+          num("C1","C.1 Total de atendimentos particularizados realizados"),
+          num("C2","C.2 Famílias encaminhadas para Inclusão no Cadastro Único"),
+          num("C3","C.3 Famílias encaminhadas para atualização no Cadastro Único"),
+          num("C4","C.4 Indivíduos encaminhados para acesso ao BPC"),
+          num("C5","C.5 Famílias encaminhadas para o CREAS"),
+          num("C6","C.6 Visitas domiciliares realizadas"),
+          num("C7","C.7 Mais Aconchego (Natalidade) concedido/entregue"),
+          num("C8","C.8 Auxílio por Morte concedido/entregue"),
+          num("C9","C.9 Outros benefícios eventuais concedidos/entregues (total)")
+        ]),
+        sec("C.9 (Detalhamento de Outros Benefícios Eventuais — se houver)", [
+          num("C9_CUIDAR_MAIS","Cuidar Mais (cesta básica)"),
+          num("C9_COLCHAO_CASAL","Colchão de casal"),
+          num("C9_COLCHAO_SOLTEIRO","Colchão de solteiro"),
+          num("C9_PASSAGEM_INTERESTADUAL","Passagem interestadual (viagem)"),
+          num("C9_DOCUMENTACAO","Documentação"),
+          num("C9_AUX_MORADIA","Auxílio moradia"),
+          num("C9_OUTROS_QTD","Outro (quantidade)"),
+          txt("C9_OUTROS_DESC","Outro (descrever)")
+        ]),
+        sec("D. Volumes de atendimentos coletivos realizados no CRAS (mês)", [
+          num("D1","D.1 Famílias participando regularmente de grupos no âmbito do PAIF"),
+          num("D2","D.2 Crianças de 0 a 06 anos em SCFV"),
+          num("D3","D.3 Crianças/adolescentes de 7 a 14 anos em SCFV"),
+          num("D4","D.4 Adolescentes de 15 a 17 anos em SCFV"),
+          num("D5","D.5 Adultos entre 18 e 59 anos em SCFV"),
+          num("D6","D.6 Idosos em SCFV para Idosos"),
+          num("D7","D.7 Pessoas em palestras/oficinas e outras atividades coletivas (caráter não continuado)"),
+          num("D8","D.8 Pessoas com deficiência (SCFV ou grupos do PAIF)")
+        ]),
+        sec("E. Ações/Atividades realizadas no mês (quantidade)", [
+          num("E1","Atividades Coletivas com usuários do CRAS"),
+          num("E2","Atividades Externas"),
+          num("E3","Audiências / Ministério Público"),
+          num("E4","Comunicação Interna"),
+          num("E5","Participação em eventos"),
+          num("E6","Reuniões"),
+          num("E7","Seminários / Capacitações"),
+          num("E8","Visitas Institucionais"),
+          txt("RESP_COORDENADOR","Responsável/Coordenação (nome)")
+        ]),
+        secTextExplicit("OBS_CRAS","Observações", "Observações / justificativas (se necessário)")
+      ]
+    },
+
+    RMA_CREAS: {
+      versao: 2,
+      titulo: "RMA CREAS — Registro Mensal",
+      sections: [
+        sec("I. PAEFI (acompanhamento e perfil — novos casos)", [
+          num("A1","A.1 Total de casos em acompanhamento pelo PAEFI"),
+          num("A2","A.2 Total de novos casos inseridos no mês"),
+          num("B1","B.1 Famílias beneficiárias do PBF (novos casos)"),
+          num("B2","B.2 Famílias com membros no BPC (novos casos)"),
+          num("B3","B.3 Famílias com crianças/adolescentes em trabalho infantil (novos casos)"),
+          num("B4","B.4 Famílias com crianças/adolescentes em acolhimento (novos casos)"),
+          num("B5","B.5 Violação associada ao uso abusivo (novos casos)")
+        ]),
+        secTables("B.6 Quantidade de pessoas vitimadas que ingressaram no PAEFI (apenas novos casos)", [
+          sexAgeTable("B6","B.6 Pessoas vitimadas (novos casos)", ["0_12","13_17","18_59","60p"])
+        ]),
+        sec("B.7", [
+          num("B7","B.7 Famílias com adolescente em Medida Socioeducativa (novos casos)")
+        ]),
+        secTables("C. Crianças e adolescentes (NOVOS casos)", [
+          sexAgeTable("C1","C.1 Violência intrafamiliar", ["0_6","7_12","13_17"]),
+          sexAgeTable("C2","C.2 Abuso sexual", ["0_6","7_12","13_17"]),
+          sexAgeTable("C3","C.3 Exploração sexual", ["0_6","7_12","13_17"]),
+          sexAgeTable("C4","C.4 Negligência/abandono", ["0_6","7_12","13_17"]),
+          sexAgeTable("C5","C.5 Trabalho infantil (até 15 anos)", ["0_6","7_12","13_17"])
+        ]),
+        secTables("D. Pessoas Idosas (60+) — NOVOS casos", [
+          sexOnlyTable("D1","D.1 Violência intrafamiliar (60+)"),
+          sexOnlyTable("D2","D.2 Negligência/abandono (60+)")
+        ]),
+        secTables("E. Pessoas com Deficiência — NOVOS casos", [
+          sexAgeTable("E1","E.1 Violência intrafamiliar", ["0_12","13_17","18_59","60p"]),
+          sexAgeTable("E2","E.2 Negligência/abandono", ["0_12","13_17","18_59","60p"])
+        ]),
+        sec("F. Mulheres (18–59)", [
+          num("F1","F.1 Violência intrafamiliar (mulheres 18–59)")
+        ]),
+        secTables("G. Tráfico de Seres Humanos — NOVOS casos", [
+          sexAgeTable("G1","G.1 Tráfico de seres humanos", ["0_12","13_17","18_59","60p"])
+        ]),
+        sec("H. Discriminação por orientação sexual", [
+          num("H1","H.1 Discriminação por orientação sexual (total)")
+        ]),
+        secTables("I. Situação de Rua — NOVOS casos", [
+          sexAgeTable("I1","I.1 Situação de rua", ["0_12","13_17","18_59","60p"])
+        ]),
+        sec("II. Atendimentos no mês", [
+          num("M1","M.1 Atendimentos individualizados"),
+          num("M2","M.2 Atendimentos em grupo"),
+          num("M3","M.3 Famílias encaminhadas para o CRAS"),
+          num("M4","M.4 Visitas domiciliares")
+        ]),
+        sec("III. Medidas Socioeducativas (LA/PSC)", [
+          yesno("J0","Não realiza oferta do Serviço de Medidas Socioeducativas (LA/PSC)?"),
+          num("J1","J.1 Total em LA e/ou PSC"),
+          num("J2","J.2 Quantidade em LA"),
+          num("J3","J.3 Quantidade em PSC")
+        ]),
+        secTables("Quantidade e perfil dos novos adolescentes inseridos no Serviço, no mês de referência", [
+          sexoTotalPorLinha("JNOVOS","J.4 a J.6 — Novos inseridos (por sexo)", [
+            {key:"J4", label:"J.4 Total de novos adolescentes em medidas (LA e/ou PSC)"},
+            {key:"J5", label:"J.5 Novos adolescentes em LA"},
+            {key:"J6", label:"J.6 Novos adolescentes em PSC"}
+          ])
+        ]),
+        sec("IV. Abordagem Social", [
+          yesno("K0","Não realiza oferta do Serviço de Abordagem Social?")
+        ]),
+        secTables("K.1 Pessoas abordadas no mês (cada pessoa conta 1 vez)", [
+          sexAgeTable("K1","K.1 Pessoas abordadas", ["0_12","13_17","18_59","60p"])
+        ]),
+        sec("K.2 a L.1 (Abordagem Social — demais itens)", [
+          num("K2","K.2 Crianças/adolescentes em trabalho infantil"),
+          num("K3","K.3 Crianças/adolescentes em exploração sexual"),
+          num("K4","K.4 Crianças/adolescentes usuárias de crack/outras drogas"),
+          num("K5","K.5 Adultos usuários de crack/outras drogas"),
+          num("K6","K.6 Migrantes"),
+          num("L1","L.1 Total de abordagens (nº de vezes)")
+        ]),
+        secTextExplicit("OBS_CREAS","Observações", "Observações (se necessário)")
+      ]
+    },
+
+    CADUNICO_CENTRAL: {
+      versao: 2,
+      titulo: "Relatório Mensal do Cadastro Único/Programa Bolsa Família",
+      sections: [
+        secTables("Atendimentos CadÚnico (por Equipamento)", [
+          matrixTable(
+            "CAD_EQP",
+            "Atendimentos CadÚnico — Equipamentos",
+            [
+              {key:"CENTRAL_01", label:"1. Central 01 (João Alves)"},
+              {key:"CENTRAL_02", label:"2. Central 02 (Marcos Freire)"},
+              {key:"CRAS_JOAO_ALVES", label:"3. CRAS João Alves"},
+              {key:"CRAS_MARCOS_FREIRE", label:"4. CRAS Marcos Freire"},
+              {key:"CRAS_NOVO_HORIZONTE", label:"5. CRAS Novo Horizonte"},
+              {key:"CRAS_PARQUE_FAROIS", label:"6. CRAS Parque dos Faróis"},
+              {key:"CRAS_JARDIM", label:"7. CRAS Jardim"},
+              {key:"SEDE", label:"8. Sede"},
+              {key:"TOTAL_GERAL", label:"TOTAL GERAL", readOnly:true}
+            ],
+            [
+              {key:"INCLUSAO", label:"Inclusão / Cadastro novo"},
+              {key:"ATUALIZACOES", label:"Atualizações"},
+              {key:"DIVERSOS", label:"Atendimentos diversos"},
+              {key:"VISITAS_SOLICITADAS", label:"Visitas solicitadas"},
+              {key:"TOTAL", label:"Total de atendimentos", readOnly:true}
+            ],
+            {
+              totalRowKey:"TOTAL_GERAL",
+              sumRowsKeys:[
+                "CENTRAL_01","CENTRAL_02",
+                "CRAS_JOAO_ALVES","CRAS_MARCOS_FREIRE","CRAS_NOVO_HORIZONTE","CRAS_PARQUE_FAROIS","CRAS_JARDIM",
+                "SEDE"
+              ],
+              computeRowTotals:true,
+              rowTotalColKey:"TOTAL",
+              rowTotalSumColKeys:["INCLUSAO","ATUALIZACOES","DIVERSOS","VISITAS_SOLICITADAS"],
+              computeTotalRow:true
+            }
+          )
+        ]),
+        sec("Atendimentos Serviço Social / Carteira da Pessoa Idosa (Central)", [
+          num("SS_SERVICO_SOCIAL","Serviço Social"),
+          num("SS_CARTEIRA_IDOSO","Carteira da Pessoa Idosa"),
+          num("SS_ATEND_ENCAM","Atendimentos/Encaminhamentos"),
+          { type:"number", id:"SS_TOTAL", label:"Total de Atendimentos (auto)", min:0, step:1, default:0, readOnly:true }
+        ]),
+        sec("Visitas CadÚnico (Central)", [
+          num("VIS_BUSCA_ATIVA","Equipe Busca Ativa"),
+          num("VIS_EQUIPE_TECNICA","Equipe Técnica"),
+          { type:"number", id:"VIS_TOTAL", label:"Total de Visitas (auto)", min:0, step:1, default:0, readOnly:true }
+        ]),
+        secTextExplicit("QUALI_INTRO","Descrição qualitativa das atividades", "Descreva as principais atividades do mês (texto geral)"),
+        repeat("ACOES_CAD", "Ações desenvolvidas (adicione quantas precisar)", [
+          txt("TITULO","Ação desenvolvida"),
+          txt("DATAS","Datas (ex.: 14/08 e 15/08/25)"),
+          {type:"textarea", id:"DESAFIOS", label:"Desafios, entraves e avanços"},
+          {type:"textarea", id:"IMPACTOS", label:"Impactos para a comunidade"}
+        ]),
+        secTextExplicit("OBS_CAD","Observações", "Outras informações/observações do mês (CadÚnico)")
+      ]
+    },
+
+    CONSELHO_TUTELAR: {
+      versao: 2,
+      titulo: "Conselho Tutelar — Mapeamento Mensal",
+      sections: [
+        secTextExplicit("CT_CONSELHEIROS","Conselheiros Tutelares", "Liste os nomes (como no documento)"),
+        sec("Quantidades de procedimentos (como no mapeamento)", [
+          num("CT_ATEND","Atendimentos (interno/externo/compartilhado)"),
+          num("CT_RELATORIOS","Relatórios"),
+          num("CT_OFICIOS","Ofícios"),
+          num("CT_ENC_REDE","Encaminhamento para rede municipal"),
+          num("CT_DECLARACOES","Declarações"),
+          num("CT_SALVES","Salves"),
+          num("CT_AUDIENCIAS","Audiências"),
+          num("CT_NOTIFICACOES","Notificações"),
+          num("CT_ACOLH_INST","Acolhimento institucional"),
+          num("CT_VIAGEM","Viagem"),
+          { type:"number", id:"CT_NUM_TOTAL", label:"Números totais (auto)", min:0, step:1, default:0, readOnly:true }
+        ]),
+        secTextExplicit("CT_OBS","Observação", "Observações (se necessário)")
+      ]
+    },
+
+    CASA_CONSELHOS_MENSAL: {
+      versao: 2,
+      titulo: "Casa dos Conselhos — Levantamento Mensal",
+      sections: [
+        secTables("Atividades dos Conselhos de Direitos (mês/ano)", [
+          matrixTable(
+            "CC_CONSELHOS",
+            "Atividades dos Conselhos de Direitos",
+            [
+              {key:"CMDCA", label:"CMDCA"},
+              {key:"CMDPI", label:"CMDPI"},
+              {key:"CMAS", label:"CMAS"},
+              {key:"CMDPCD", label:"CMDPCD"},
+              {key:"TOTAL", label:"Total", readOnly:true}
+            ],
+            [
+              {key:"ATAS", label:"Atas"},
+              {key:"OFICIOS", label:"Ofícios enviados"},
+              {key:"MP_VISITAS", label:"Ministério Público (Visitas)"},
+              {key:"MP_AUD", label:"Ministério Público (Audiência)"},
+              {key:"RESOLUCOES", label:"Resoluções"},
+              {key:"REUN_ORD", label:"Reuniões Ordinárias"},
+              {key:"REUN_EXT", label:"Reuniões Extraordinárias"},
+              {key:"CONVOCACOES", label:"Convocações"}
+            ],
+            { totalRowKey:"TOTAL", sumRowsKeys:["CMDCA","CMDPI","CMAS","CMDPCD"] }
+          )
+        ]),
+        secTables("Tipo / Total", [
+          matrixTable(
+            "CC_TIPO",
+            "Tipo / Total",
+            [
+              {key:"PRODUTIVIDADE", label:"Produtividade"},
+              {key:"RELATORIOS", label:"Relatórios"},
+              {key:"NOTIFICACOES", label:"Notificações"},
+              {key:"DENUNCIAS", label:"Denúncias de violação de direitos"},
+              {key:"AUDIENCIAS", label:"Audiências"},
+              {key:"VIAGENS_VISITAS", label:"Viagens/Visitas"},
+              {key:"CAPACITACOES", label:"Capacitações"},
+              {key:"SEMINARIOS", label:"Seminários"},
+              {key:"PORTARIAS", label:"Portarias"},
+              {key:"DECRETOS", label:"Decretos"}
+            ],
+            [{key:"TOTAL", label:"Total"}],
+            null
+          )
+        ]),
+        secTextExplicit("OBS_CASA_CONS","Observações", "Observações do mês (Casa dos Conselhos)")
+      ]
+    },
+
+    BEM_GERAL: {
+      versao: 2,
+      titulo: "Benefício Estudantil Municipal — Relatório Geral",
+      sections: [
+        sec("Quantitativo (conforme relatório)", [
+          num("BEM_APROV_EDITAL","Aprovados no edital (total)"),
+          num("BEM_APROV_BILH","Aprovados — Bilhetagem"),
+          num("BEM_APROV_ROTAS","Aprovados — Rotas"),
+          num("BEM_QUANTITATIVO","Quantitativo (geral)"),
+          num("BEM_PED_RECURSO","Pedidos de recurso"),
+          num("BEM_RECURSO_ACEITO","Pedidos de recurso aceitos"),
+          num("BEM_DESCLASS","Desclassificados"),
+          num("BEM_ENTREGAS","Entregas realizadas"),
+          num("BEM_CARTEIRINHAS_ENT","Carteirinhas entregues (Geral)"),
+          num("BEM_CARTEIRINHAS_PEND","Carteirinhas pendentes à entregar")
+        ]),
+        secTextExplicit("BEM_DESC_QUALI","Descrição Qualitativa de Atividades", "Descreva a atividade (texto)"),
+        secTextExplicit("BEM_DESAFIOS","Desafios", "Desafios (texto)"),
+        secTextExplicit("BEM_ENTRAVES","Entraves e avanços", "Entraves e avanços (texto)"),
+        secTextExplicit("BEM_IMPACTOS","Impactos para a comunidade", "Impactos (texto)"),
+        secTextExplicit("BEM_OUTRAS","Outras informações", "Outras informações (ex.: Nada a declarar)")
+      ]
+    },
+
+    CRAM_MENSAL: {
+      versao: 3,
+      titulo: "CRAM — Registro Mensal de Atendimentos",
+      sections: [
+        sec("I — Volume de famílias em acompanhamento pelo CRAM", [
+          num("CRAM_1_1_TOTAL_CASOS","1.1 Total de casos de mulheres em acompanhamento pelo CRAM"),
+          num("CRAM_1_2_NOVOS_CASOS","1.2 Novos casos de mulheres inseridas no acompanhamento do CRAM no mês")
+        ]),
+        sec("I.3 — Perfil dos novos casos inseridos no acompanhamento do CRAM no mês", [
+          num("CRAM_1_4_FAM_CMAIS","1.4 Famílias beneficiárias do Programa CMAIS Mulher"),
+          num("CRAM_1_5_FAM_BPC","1.5 Famílias com membros beneficiários do BPC"),
+          num("CRAM_1_6_FAM_BOLSA","1.6 Famílias beneficiárias do Programa Bolsa Família"),
+          num("CRAM_1_7_FAM_ACOLH","1.7 Famílias com mulheres/crianças/adolescentes em Serviço de Acolhimento/Abrigamento"),
+          num("CRAM_1_8_MULHER_AUX_MOR","1.8 Mulheres beneficiárias do Auxílio Moradia")
+        ]),
+        secTextExplicit("CRAM_1_9_OBS","1.9 Observações", "Observações (se necessário)"),
+        sec("1.10 — Mulheres vítimas que ingressaram no CRAM no mês (apenas novos casos) — por idade", [
+          num("CRAM_1_10_MENOR18","Menor de 18 anos"),
+          num("CRAM_1_10_18_59","18 a 59 anos"),
+          num("CRAM_1_10_60P","60 anos ou mais"),
+          { type:"number", id:"CRAM_1_10_TOTAL", label:"Total (auto)", min:0, step:1, default:0, readOnly:true }
+        ]),
+        sec("1.11 — Tipos de Violência (quantitativo)", [
+          num("CRAM_VIOL_PSICO","Psicológica"),
+          num("CRAM_VIOL_FISICA","Física"),
+          num("CRAM_VIOL_MORAL","Moral"),
+          num("CRAM_VIOL_PATRIM","Patrimonial"),
+          num("CRAM_VIOL_SEXUAL","Sexual"),
+          { type:"number", id:"CRAM_VIOL_TOTAL", label:"Total (auto)", min:0, step:1, default:0, readOnly:true }
+        ]),
+        sec("II — Atendimentos realizados no CRAM (mês de referência)", [
+          { type:"number", id:"CRAM_2_TOTAL_ATEND_MES", label:"Total de atendimentos no mês (auto)", min:0, step:1, default:0, readOnly:true },
+          num("CRAM_2_1_ATEND_PARTIC","2.1 Total de atendimentos particularizados realizados no mês"),
+          num("CRAM_2_2_ENC_ODONTO","2.2 Mulheres encaminhadas ao Tratamento Odontológico"),
+          num("CRAM_2_3_ATEND_GRUPO","2.3 Total de atendimentos em grupo (GRUPOS REALIZADOS)"),
+          num("CRAM_2_4_ACOMP_PSICO","2.4 Mulheres em acompanhamento psicológico terapêutico"),
+          num("CRAM_2_5_FAM_ENC_CRAS","2.5 Famílias encaminhadas para o CRAS no mês"),
+          num("CRAM_2_6_VIS_DOM","2.6 Visitas domiciliares realizadas no mês"),
+          num("CRAM_2_7_VIS_INST","2.7 Visitas institucionais"),
+          num("CRAM_2_8_ENC_INST","2.8 Encaminhamentos institucionais"),
+          num("CRAM_2_9_ENC_TRAB","2.9 Encaminhamento para Sec. do Trabalho"),
+          num("CRAM_2_10_ENC_CURSOS","2.10 Encaminhamento para cursos profissionalizantes")
+        ]),
+        sec("III — Quantidade de desligamento dos serviços do CRAM no mês", [
+          num("CRAM_3_DESLIGAMENTOS","Total")
+        ]),
+        sec("IV — Quantidade de mulheres que não aderiram aos serviços do CRAM no mês", [
+          num("CRAM_4_NAO_ADERIRAM","Total")
+        ]),
+        sec("V — Quantidade de técnicas que participaram de eventos no mês", [
+          num("CRAM_5_TEC_EVENTOS","Total")
+        ]),
+        sec("Responsáveis (opcional)", [
+          txt("CRAM_RESP_REPASSE","Nome e cargo da pessoa responsável pelo repasse"),
+          txt("CRAM_COORDENADORA","Coordenadora do CRAM (nome)"),
+          { type:"textarea", id:"CRAM_TECNICAS", label:"Assinatura das técnicas (nomes — um por linha)" }
+        ])
+      ]
+    },
+
+    ACOLHIMENTO_MENSAL: {
+      versao: 2,
+      titulo: "Unidade de Acolhimento — Informações Mensais",
+      sections: [
+        sec("Acolhidos por faixa etária", [
+          num("IDADE_0_6","0 a 6 anos"),
+          num("IDADE_7_12","7 a 12 anos"),
+          num("IDADE_13_17","13 a 17 anos"),
+          { type:"number", id:"IDADE_TOTAL", label:"Total (auto)", min:0, step:1, default:0, readOnly:true }
+        ]),
+        sec("Acolhidos por sexo", [
+          num("SEXO_M","Masculino"),
+          num("SEXO_F","Feminino"),
+          { type:"number", id:"SEXO_TOTAL", label:"Total (auto)", min:0, step:1, default:0, readOnly:true }
+        ]),
+        sec("Tempo de acolhimento (quantidade)", [
+          num("T_24H","Até 24 horas"),
+          num("T_3M","Até 3 meses"),
+          num("T_4A12M","De 4 a 12 meses"),
+          num("T_12A18M","De 12 a 18 meses"),
+          num("T_18M","Acima de 18 meses")
+        ]),
+        sec("Audiências e Visitas recebidas", [
+          num("AUD_AVALIACAO","Audiências de avaliação realizadas"),
+          num("VIS_FAMILIARES","Visitas recebidas de familiares"),
+          num("CONTATOS_FAMILIA","Contatos recebidos/viabilizados de/para familiares"),
+          num("VIS_CT","Visitas recebidas do Conselho Tutelar"),
+          num("VIS_MP","Visitas recebidas do Ministério Público"),
+          num("VIS_PJ","Visitas recebidas do Poder Judiciário"),
+          num("VIS_REDE_SUAS","Visitas de profissionais da Rede Socioassistencial"),
+          num("VIS_REDE_INTERSET","Visitas de profissionais da Rede Intersetorial"),
+          num("VIS_COMUNIDADE","Visitas de pessoas da comunidade")
+        ]),
+        sec("Atendimentos / Encaminhamentos / Rotina", [
+          num("ATEND_INDIV","Atendimentos individualizados (PIA)"),
+          num("PIA_ELAB","PIAs elaborados"),
+          num("ATEND_FAMILIA","Atendimentos às famílias"),
+          num("ATEND_GRUPO","Atendimentos em grupo"),
+          num("ENC_SUAS","Encaminhamentos à rede socioassistencial"),
+          num("ENC_INTERSET","Encaminhamentos à rede intersetorial"),
+          num("ENC_DOC","Encaminhamentos para documentação pessoal"),
+          num("VIS_DOM","Visitas domiciliares"),
+          num("VIS_INST","Visitas institucionais"),
+          num("REL_TEC","Relatórios técnicos encaminhados"),
+          num("REUN_REDE_PIA","Reuniões com a rede (para elaboração do PIA)"),
+          num("MATRICIAMENTO","Reuniões com a rede (matriciamento)"),
+          num("CAP_INT","Capacitações internas realizadas"),
+          num("CAP_GESTAO","Capacitações promovidas pela gestão municipal")
+        ]),
+        secTextExplicit("OBS_ACOLH","Observações", "Outras informações pertinentes do mês")
+      ]
+    },
+
+    RESTAURANTE_POPULAR_MENSAL: {
+      versao: 1,
+      titulo: "Restaurante Popular — Informações Mensais",
+      sections: [
+        sec("Informações do mês", [
+          money("RP_INVEST","Investimento (R$)"),
+          num("RP_REFEICOES_MES","Número de refeições (mês)"),
+          num("RP_REFEICOES_DIA","Número de refeições diárias"),
+          txt("RP_RESP","Responsável/Coordenação (nome)")
+        ]),
+        secTextExplicit("OBS_RP","Observações", "Observações (se necessário)")
+      ]
+    }
+  };
+
+  // ========= INIT =========
+  document.addEventListener('DOMContentLoaded', ()=>{
+    try{
+      init();
+      const banner = document.getElementById('rmaBootBanner');
+      if (banner) banner.style.display = 'none';
+    }catch(e){
+      console.error('RMA init error', e);
+      const banner = document.getElementById('rmaBootBanner');
+      if (banner) banner.textContent = 'Erro ao iniciar o RMA: ' + (e?.message || e);
+    }
+  });
+
+  function init(){
+    showPage('pageHome');
+    const grid = document.getElementById('unitsGrid');
+    if (grid) grid.innerHTML = '<div class="small">Carregando unidades…</div>';
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth()+1).padStart(2,'0');
+    const dd = String(today.getDate()).padStart(2,'0');
+
+    const savedComp = sget('rma_competencia');
+    const savedDate = sget('rma_data');
+
+    document.getElementById('competencia').value = savedComp || `${yyyy}-${mm}`;
+    document.getElementById('dataPreenchimento').value = savedDate || `${yyyy}-${mm}-${dd}`;
+
+    document.getElementById('competencia').addEventListener('change', ()=>{
+      sset('rma_competencia', document.getElementById('competencia').value);
+      updatePills();
+      if (STATE.schema) checkLatestEditable();
+      initDashboardDefaults();
+      updateDashSelectionPill();
+    });
+    document.getElementById('dataPreenchimento').addEventListener('change', ()=>{
+      sset('rma_data', document.getElementById('dataPreenchimento').value);
+      updatePills();
+    });
+
+    document.getElementById('buscaUnidade').addEventListener('input', renderUnits);
+
+    document.getElementById('btnBackHome').addEventListener('click', ()=>{
+      STATE.unidade = null; STATE.formKey = null; STATE.schema = null;
+      STATE.editing = false; STATE.editingSubmissionId = null; STATE.latestCache=null;
+      showPage('pageHome');
+      updatePills();
+    });
+
+    document.getElementById('btnBackForms').addEventListener('click', ()=>{
+      STATE.formKey = null; STATE.schema = null;
+      STATE.editing = false; STATE.editingSubmissionId = null; STATE.latestCache=null;
+      showPage('pageUnitForms');
+      updatePills();
+    });
+
+    // painel
+    document.getElementById('btnBackDash').addEventListener('click', ()=>{
+      showPage('pageHome');
+      updatePills();
+    });
+    document.getElementById('btnGerarDash').addEventListener('click', runDashboard);
+    document.getElementById('btnBaixarPng').addEventListener('click', downloadDashboardPng);
+    document.getElementById('btnCarregarBase').addEventListener('click', loadBaseFlatPreview);
+
+    document.getElementById('dashForm').addEventListener('change', ()=>{
+      fillIndicadoresForForm(document.getElementById('dashForm').value);
+      updateDashSelectionPill();
+    });
+    document.getElementById('dashIndicador').addEventListener('change', updateDashSelectionPill);
+    document.getElementById('dashCompFrom').addEventListener('change', updateDashSelectionPill);
+    document.getElementById('dashCompTo').addEventListener('change', updateDashSelectionPill);
+    document.getElementById('dashUnidade').addEventListener('change', updateDashSelectionPill);
+    document.getElementById('dashModo').addEventListener('change', updateDashSelectionPill);
+    document.getElementById('dashTipoGraf').addEventListener('change', updateDashSelectionPill);
+
+    document.getElementById('btnSalvar').addEventListener('click', startReviewFlow);
+    document.getElementById('btnRecarregarUltimo').addEventListener('click', ()=>{
+      if (!STATE.latestCache?.found) return;
+      populateAllFromSaved(STATE.latestCache);
+      showToast('toastSave','Último registro carregado para edição.', false);
+    });
+    document.getElementById('btnNovoRegistro').addEventListener('click', ()=>{
+      STATE.editing = false;
+      STATE.editingSubmissionId = null;
+      setEditStatus();
+      document.getElementById('btnNovoRegistro').style.display='none';
+      showToast('toastSave','Modo novo registro ativado. Você pode preencher e salvar.', false);
+    });
+
+    // modal
+    document.getElementById('btnCloseReview').addEventListener('click', closeReview);
+    document.getElementById('btnVoltarRevisao').addEventListener('click', closeReview);
+    document.getElementById('btnConfirmarEnvio').addEventListener('click', confirmSend);
+
+    showToast('toast','Conectando ao servidor…',false);
+
+    google.script.run
+      .withSuccessHandler((res)=>{
+        BOOT = res;
+        showToast('toast','',false);
+        renderUnits();
+        updatePills();
+        initDashboardDefaults();
+        updateDashSelectionPill();
+      })
+      .withFailureHandler((err)=>{
+        showToast('toast', err?.message || String(err), true);
+      })
+      .api_getBootstrap();
+  }
+
+  function updatePills(){
+    const comp = document.getElementById('competencia').value || '—';
+    const dp = document.getElementById('dataPreenchimento').value || '—';
+    document.getElementById('pillInfo').textContent = `Competência: ${comp} • Data: ${dp}`;
+
+    const pillU = document.getElementById('pillUnidade');
+    const pillF = document.getElementById('pillForm');
+
+    if (STATE.unidade){
+      pillU.style.display='inline-flex';
+      pillU.textContent = `Unidade: ${STATE.unidade.nome}`;
+    } else pillU.style.display='none';
+
+    if (STATE.formKey){
+      pillF.style.display='inline-flex';
+      pillF.textContent = `Formulário: ${FORMS_LABEL[STATE.formKey] || STATE.formKey}`;
+    } else pillF.style.display='none';
+  }
+
+  function showPage(id){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('show'));
+    document.getElementById(id).classList.add('show');
+  }
+
+  // ========= HUB UNIDADES =========
+  function renderUnits(){
+    const q = (document.getElementById('buscaUnidade').value || '').trim().toUpperCase();
+    const grid = document.getElementById('unitsGrid');
+    grid.innerHTML = '';
+
+    if (!BOOT?.unidades){
+      grid.innerHTML = '<div class="small">Ainda não carregou. Se ficar assim, execute/autorize api_getBootstrap no editor.</div>';
+      return;
+    }
+
+    const ENABLE_DASHBOARD = false;
+    const showTool = ENABLE_DASHBOARD &&
+      ((!q) ||
+      ['PAINEL','RELATORIO','RELATÓRIO','GRAFICO','GRÁFICO','DASH','DASHBOARD','BASE'].some(w => q.includes(w)));
+
+    if (showTool){
+      const tool = document.createElement('div');
+      tool.className = 'tile';
+      tool.innerHTML = `
+        <div class="t1">📊 Painel e Relatórios</div>
+        <div class="t2">Gerar gráficos e tabelas (BASE_FLAT)</div>
+        <span class="badge">Abrir painel</span>
+      `;
+      tool.addEventListener('click', openDashboard);
+      grid.appendChild(tool);
+    }
+
+    const unidades = (BOOT.unidades || []).filter(u => !q || u.nome.toUpperCase().includes(q) || u.tipo.toUpperCase().includes(q));
+
+    if (!unidades.length && !showTool){
+      grid.innerHTML = '<div class="small">Nenhuma unidade encontrada.</div>';
+      return;
+    }
+
+    unidades.forEach(u=>{
+      const div = document.createElement('div');
+      div.className = 'tile';
+      div.innerHTML = `
+        <div class="t1">${escapeHtml(u.nome)}</div>
+        <div class="t2">${escapeHtml(tipoLabel(u.tipo))}</div>
+        <span class="badge">Abrir</span>
+      `;
+      div.addEventListener('click', ()=>openUnit(u));
+      grid.appendChild(div);
+    });
+  }
+
+  function tipoLabel(tipo){
+    const m = {
+      CRAS:"CRAS",
+      CREAS:"CREAS",
+      CADUNICO_CENTRAL:"Central CadÚnico",
+      CONSELHO_TUTELAR:"Conselho Tutelar",
+      CRAM:"CRAM",
+      CASA_CONSELHOS:"Casa dos Conselhos",
+      BEM:"BEM",
+      ACOLHIMENTO:"Acolhimento",
+      RESTAURANTE_POPULAR:"Restaurante Popular"
+    };
+    return m[tipo] || tipo;
+  }
+
+  function openUnit(u){
+    STATE.unidade = u;
+    STATE.formKey = null;
+    STATE.schema = null;
+    STATE.editing = false;
+    STATE.editingSubmissionId = null;
+    STATE.latestCache = null;
+
+    const keys = (BOOT?.formsByTipo?.[u.tipo] || []);
+    if (keys.length === 1){
+      openForm(keys[0]);
+      return;
+    }
+
+    document.getElementById('unitTitle').textContent = `Formulários — ${u.nome}`;
+    renderFormsForUnit(u);
+    showPage('pageUnitForms');
+    updatePills();
+    showToast('toastUnit','',false);
+  }
+
+  // ========= HUB FORMULÁRIOS =========
+  function renderFormsForUnit(u){
+    const grid = document.getElementById('formsGrid');
+    grid.innerHTML = '';
+
+    const keys = (BOOT?.formsByTipo?.[u.tipo] || []);
+    if (!keys.length){
+      showToast('toastUnit', 'Ainda não há formulário cadastrado para esta unidade.', true);
+      return;
+    }
+
+    keys.forEach(k=>{
+      const div = document.createElement('div');
+      div.className = 'tile';
+      div.innerHTML = `
+        <div class="t1">${escapeHtml(FORMS_LABEL[k] || k)}</div>
+        <div class="t2">Clique para preencher</div>
+        <span class="badge">Abrir formulário</span>
+      `;
+      div.addEventListener('click', ()=>openForm(k));
+      grid.appendChild(div);
+    });
+  }
+
+  // ========= FORM =========
+  function openForm(formKey){
+    const schema = SCHEMA[formKey];
+    if (!schema){
+      showToast('toastUnit', 'Este formulário ainda não foi modelado no sistema.', true);
+      return;
+    }
+    STATE.formKey = formKey;
+    STATE.schema = schema;
+    STATE.editing = false;
+    STATE.editingSubmissionId = null;
+    STATE.latestCache = null;
+
+    document.getElementById('formTitle').textContent = `${schema.titulo}`;
+    const body = document.getElementById('formBody');
+    body.innerHTML = '';
+    renderSchema(body, schema);
+
+    document.getElementById('btnRecarregarUltimo').style.display='none';
+    document.getElementById('btnNovoRegistro').style.display='none';
+    document.getElementById('preenchidoPorNome').value = '';
+    setEditStatus();
+
+    showPage('pageForm');
+    updatePills();
+    showToast('toastSave','',false);
+
+    checkLatestEditable();
+    setupAutoTotalsForForm_(formKey);
+  }
+
+  function setEditStatus(){
+    const el = document.getElementById('editStatus');
+    if (!STATE.latestCache?.found){
+      el.value = 'Sem registro anterior encontrado';
+      return;
+    }
+    if (STATE.latestCache.editavel){
+      el.value = STATE.editing ? 'EDITANDO (24h)' : 'Editável por 24h (clique para carregar)';
+    } else {
+      el.value = 'Encontrado, mas fora das 24h (somente novo registro)';
+    }
+  }
+
+  function checkLatestEditable(){
+    const comp = document.getElementById('competencia').value;
+    if (!comp || !STATE.unidade || !STATE.formKey) return;
+
+    google.script.run
+      .withSuccessHandler((res)=>{
+        STATE.latestCache = res;
+        setEditStatus();
+
+        if (res?.found && res?.editavel){
+          document.getElementById('btnRecarregarUltimo').style.display='inline-flex';
+          document.getElementById('btnNovoRegistro').style.display='inline-flex';
+          if (res.preenchidoPor && !document.getElementById('preenchidoPorNome').value){
+            document.getElementById('preenchidoPorNome').value = res.preenchidoPor;
+          }
+        } else {
+          document.getElementById('btnRecarregarUltimo').style.display='none';
+          document.getElementById('btnNovoRegistro').style.display='none';
+        }
+      })
+      .withFailureHandler((err)=>{
+        console.error(err);
+      })
+      .api_getLatestSubmission({
+        competencia: comp,
+        unidadeId: STATE.unidade.id,
+        formKey: STATE.formKey
+      });
+  }
+
+  function renderSchema(root, schema){
+    (schema.sections || []).forEach(secObj=>{
+      const h = document.createElement('div');
+      h.className = 'sectionTitle';
+      h.textContent = secObj.title || '';
+      root.appendChild(h);
+
+      if (secObj.hint) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = secObj.hint;
+        root.appendChild(p);
+      }
+
+      if (secObj.fields && secObj.fields.length) {
+        const wrap = document.createElement('div');
+        wrap.className = 'grid cols-2';
+        secObj.fields.forEach(f=>wrap.appendChild(renderField(f, `f_${f.id}`)));
+        root.appendChild(wrap);
+        root.appendChild(divider());
+      }
+
+      if (secObj.tables && secObj.tables.length) {
+        secObj.tables.forEach(t=>{
+          root.appendChild(renderTable(t));
+          root.appendChild(divider());
+        });
+      }
+
+      if (secObj.repeat){
+        root.appendChild(renderRepeat(secObj.repeat));
+        root.appendChild(divider());
+      }
+    });
+  }
+
+  function divider(){
+    const d = document.createElement('div');
+    d.className = 'divider';
+    return d;
+  }
+
+  function renderField(f, domId){
+    const box = document.createElement('div');
+    const lab = document.createElement('label');
+    lab.textContent = f.label || f.id;
+    box.appendChild(lab);
+
+    let el;
+    if (f.type === 'textarea') {
+      el = document.createElement('textarea');
+      el.placeholder = 'Digite aqui...';
+    } else if (f.type === 'select') {
+      el = document.createElement('select');
+      (f.options || []).forEach(opt=>{
+        const o = document.createElement('option');
+        o.value = opt; o.textContent = opt;
+        el.appendChild(o);
+      });
+      if (f.default !== undefined) el.value = f.default;
+    } else {
+      el = document.createElement('input');
+      el.type = f.type || 'text';
+      if (f.type === 'number') {
+        el.min = (f.min ?? 0);
+        el.step = (f.step ?? 1);
+        el.value = (f.default ?? 0);
+      }
+    }
+    el.id = domId;
+
+    applyMask_(el, f);
+
+    if (f.readOnly) {
+      if (el.tagName === 'SELECT') el.disabled = true;
+      else el.readOnly = true;
+      el.style.background = '#f8fafc';
+    }
+
+    box.appendChild(el);
+    return box;
+  }
+
+  function renderRepeat(rep){
+    const wrap = document.createElement('div');
+    wrap.className = 'repeatWrap';
+    wrap.dataset.repeatId = rep.id;
+
+    const top = document.createElement('div');
+    top.className = 'row';
+    top.innerHTML = `
+      <span class="pill">Lista dinâmica</span>
+      <button class="btn ghost" type="button" id="btnAdd_${rep.id}">+ Adicionar</button>
+      <span class="small">Se não teve ação no mês, deixe em branco.</span>
+    `;
+    wrap.appendChild(top);
+
+    const items = document.createElement('div');
+    items.id = `repItems_${rep.id}`;
+    wrap.appendChild(items);
+
+    wrap.querySelector(`#btnAdd_${rep.id}`).addEventListener('click', ()=>{
+      addRepeatItem(rep.id, rep.itemFields);
+    });
+
+    return wrap;
+  }
+
+  function addRepeatItem(repId, itemFields, preset){
+    const items = document.getElementById(`repItems_${repId}`);
+    const idx = items.querySelectorAll('[data-repeat-item="1"]').length + 1;
+
+    const card = document.createElement('div');
+    card.className = 'repeatItem';
+    card.dataset.repeatItem = "1";
+    card.dataset.repeatIndex = String(idx);
+
+    const head = document.createElement('div');
+    head.className = 'repeatHead';
+    head.innerHTML = `
+      <b>${escapeHtml(repId)} • Ação #${idx}</b>
+      <button class="btn danger" type="button">Remover</button>
+    `;
+    head.querySelector('button').addEventListener('click', ()=> card.remove());
+    card.appendChild(head);
+
+    const grid = document.createElement('div');
+    grid.className = 'grid cols-2';
+
+    itemFields.forEach(f=>{
+      const id = `r_${repId}_${idx}_${f.id}`;
+      const node = renderField(f, id);
+      grid.appendChild(node);
+    });
+
+    card.appendChild(grid);
+    items.appendChild(card);
+
+    if (preset && typeof preset === 'object'){
+      itemFields.forEach(f=>{
+        const id = `r_${repId}_${idx}_${f.id}`;
+        const el = document.getElementById(id);
+        if (!el) return;
+        const v = preset[f.id];
+
+        if ((f.mask||'').toUpperCase() === 'BRL'){
+          el.value = formatBRLNumber_(Number(v || 0));
+          el.dataset.cents = String(Math.round(Number(v || 0) * 100));
+        } else if (f.type === 'number'){
+          el.value = Number(v || 0);
+        } else {
+          el.value = (v ?? '');
+        }
+      });
+    }
+  }
+
+  function renderTable(t){
+    const wrap = document.createElement('div');
+
+    const title = document.createElement('div');
+    title.className = 'hint';
+    title.style.fontWeight = '900';
+    title.style.color = '#0f172a';
+    title.textContent = t.title || '';
+    wrap.appendChild(title);
+
+    if (t.kind === 'matrix') {
+      const table = document.createElement('table');
+      table.dataset.matrixPrefix = t.prefix;
+
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+
+      const th0 = document.createElement('th');
+      th0.textContent = '';
+      trh.appendChild(th0);
+
+      (t.cols || []).forEach(c=>{
+        const th = document.createElement('th');
+        th.textContent = c.label;
+        trh.appendChild(th);
+      });
+
+      thead.appendChild(trh);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+
+      (t.rows || []).forEach(r=>{
+        const tr = document.createElement('tr');
+
+        const tdLabel = document.createElement('td');
+        tdLabel.textContent = r.label;
+        tdLabel.style.fontWeight = '700';
+        tr.appendChild(tdLabel);
+
+        (t.cols || []).forEach(c=>{
+          const td = document.createElement('td');
+          const inp = document.createElement('input');
+          inp.type = 'number';
+          inp.min = 0;
+          inp.step = 1;
+          inp.value = 0;
+          inp.id = `m_${t.prefix}_${r.key}_${c.key}`;
+
+          if (r.readOnly || c.readOnly) {
+_toggle:
+            inp.readOnly = true;
+            inp.style.background = '#f8fafc';
+          }
+
+          td.appendChild(inp);
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+
+      if (t.opts) setTimeout(() => setupMatrixAuto_(t), 0);
+
+      return wrap;
+    }
+
+    const p = document.createElement('div');
+    p.className = 'small';
+    p.textContent = 'Tabela não suportada.';
+    wrap.appendChild(p);
+    return wrap;
+  }
+
+  function setupMatrixAuto_(t){
+    const opts = t.opts || {};
+    const rows = t.rows || [];
+    const cols = t.cols || [];
+
+    const tableEl = document.querySelector(`table[data-matrix-prefix="${t.prefix}"]`);
+    if (!tableEl) return;
+
+    const totalRowKey = opts.totalRowKey;
+    const sumRowsKeys = opts.sumRowsKeys || [];
+
+    const rowTotalColKey = opts.rowTotalColKey || 'TOTAL';
+    const rowTotalSumColKeys = opts.rowTotalSumColKeys || [];
+
+    const computeTotalRow =
+      (opts.computeTotalRow !== undefined)
+        ? !!opts.computeTotalRow
+        : (!!totalRowKey && sumRowsKeys.length > 0);
+
+    const computeRowTotals =
+      (opts.computeRowTotals !== undefined)
+        ? !!opts.computeRowTotals
+        : (rowTotalSumColKeys.length > 0);
+
+    function getCell(rowKey, colKey){
+      return document.getElementById(`m_${t.prefix}_${rowKey}_${colKey}`);
+    }
+
+    function calc(){
+      if (computeRowTotals && rowTotalSumColKeys.length){
+        rows.forEach(r=>{
+          if (r.key === totalRowKey) return;
+          let sum = 0;
+          rowTotalSumColKeys.forEach(ck=>{
+            sum += Number(getCell(r.key, ck)?.value || 0);
+          });
+          const cell = getCell(r.key, rowTotalColKey);
+          if (cell) cell.value = sum;
+        });
+      }
+
+      if (computeTotalRow && totalRowKey && sumRowsKeys.length){
+        cols.forEach(c=>{
+          let sum = 0;
+          sumRowsKeys.forEach(rk=>{
+            sum += Number(getCell(rk, c.key)?.value || 0);
+          });
+          const cellT = getCell(totalRowKey, c.key);
+          if (cellT) cellT.value = sum;
+        });
+      }
+    }
+
+    const alreadyBound = tableEl.dataset.bound === '1';
+    if (!alreadyBound) tableEl.dataset.bound = '1';
+
+    if (!alreadyBound){
+      const handler = ()=> calc();
+      rows.forEach(r=>{
+        cols.forEach(c=>{
+          const el = getCell(r.key, c.key);
+          if (!el || el.readOnly) return;
+          el.addEventListener('input', handler);
+          el.addEventListener('change', handler);
+        });
+      });
+    }
+
+    calc();
+  }
+
+  // ========= TOTAIS AO VIVO (campos) =========
+  function setupSumField_(targetId, sourceIds){
+    const t = document.getElementById(`f_${targetId}`);
+    if (!t) return;
+
+    const recalc = ()=>{
+      let s = 0;
+      sourceIds.forEach(id=>{
+        const el = document.getElementById(`f_${id}`);
+        s += Number(el?.value || 0);
+      });
+      t.value = s;
+    };
+
+    if (t.dataset.boundSum !== '1'){
+      sourceIds.forEach(id=>{
+        const el = document.getElementById(`f_${id}`);
+        if (!el) return;
+        el.addEventListener('input', recalc);
+        el.addEventListener('change', recalc);
+      });
+      t.dataset.boundSum = '1';
+    }
+
+    recalc();
+  }
+
+  function setupAutoTotalsForForm_(formKey){
+    if (formKey === 'CRAM_MENSAL'){
+      setupSumField_('CRAM_1_10_TOTAL', ['CRAM_1_10_MENOR18','CRAM_1_10_18_59','CRAM_1_10_60P']);
+      setupSumField_('CRAM_VIOL_TOTAL', ['CRAM_VIOL_PSICO','CRAM_VIOL_FISICA','CRAM_VIOL_MORAL','CRAM_VIOL_PATRIM','CRAM_VIOL_SEXUAL']);
+      setupSumField_('CRAM_2_TOTAL_ATEND_MES', [
+        'CRAM_2_1_ATEND_PARTIC','CRAM_2_2_ENC_ODONTO','CRAM_2_3_ATEND_GRUPO','CRAM_2_4_ACOMP_PSICO','CRAM_2_5_FAM_ENC_CRAS',
+        'CRAM_2_6_VIS_DOM','CRAM_2_7_VIS_INST','CRAM_2_8_ENC_INST','CRAM_2_9_ENC_TRAB','CRAM_2_10_ENC_CURSOS'
+      ]);
+    }
+    if (formKey === 'ACOLHIMENTO_MENSAL'){
+      setupSumField_('IDADE_TOTAL', ['IDADE_0_6','IDADE_7_12','IDADE_13_17']);
+      setupSumField_('SEXO_TOTAL', ['SEXO_M','SEXO_F']);
+    }
+    if (formKey === 'CADUNICO_CENTRAL'){
+      setupSumField_('SS_TOTAL', ['SS_SERVICO_SOCIAL','SS_CARTEIRA_IDOSO','SS_ATEND_ENCAM']);
+      setupSumField_('VIS_TOTAL', ['VIS_BUSCA_ATIVA','VIS_EQUIPE_TECNICA']);
+    }
+    if (formKey === 'CONSELHO_TUTELAR'){
+      setupSumField_('CT_NUM_TOTAL', [
+        'CT_ATEND','CT_RELATORIOS','CT_OFICIOS','CT_ENC_REDE','CT_DECLARACOES','CT_SALVES',
+        'CT_AUDIENCIAS','CT_NOTIFICACOES','CT_ACOLH_INST','CT_VIAGEM'
+      ]);
+    }
+  }
+
+  function collectFormData(schema){
+    const dados = {};
+
+    (schema.sections || []).forEach(secObj=>{
+      (secObj.fields || []).forEach(f=>{
+        const el = document.getElementById(`f_${f.id}`);
+        if (!el) return;
+
+        if ((f.mask || '').toUpperCase() === 'BRL'){
+          dados[f.id] = parseBRL_(el.value);
+        } else if (f.type === 'number'){
+          dados[f.id] = Number(el.value || 0);
+        } else {
+          dados[f.id] = String(el.value || '').trim();
+        }
+      });
+
+      (secObj.tables || []).forEach(t=>{
+        if (t.kind === 'matrix') {
+          (t.rows || []).forEach(r=>{
+            (t.cols || []).forEach(c=>{
+              const el = document.getElementById(`m_${t.prefix}_${r.key}_${c.key}`);
+              if (!el) return;
+              dados[`${t.prefix}_${r.key}_${c.key}`] = Number(el.value || 0);
+            });
+          });
+        }
+      });
+
+      if (secObj.repeat){
+        const repId = secObj.repeat.id;
+        const items = document.getElementById(`repItems_${repId}`);
+        const arr = [];
+        if (items){
+          items.querySelectorAll('[data-repeat-item="1"]').forEach(card=>{
+            const idx = card.dataset.repeatIndex;
+            const obj = {};
+            secObj.repeat.itemFields.forEach(f=>{
+              const el = document.getElementById(`r_${repId}_${idx}_${f.id}`);
+              if (!el) return;
+
+              if ((f.mask || '').toUpperCase() === 'BRL'){
+                obj[f.id] = parseBRL_(el.value);
+              } else if (f.type === 'number'){
+                obj[f.id] = Number(el.value || 0);
+              } else {
+                obj[f.id] = String(el.value || '').trim();
+              }
+            });
+            const hasAny = Object.values(obj).some(v => String(v||'').trim() !== '' && String(v) !== '0');
+            if (hasAny) arr.push(obj);
+          });
+        }
+        dados[repId] = arr;
+      }
+    });
+
+    return dados;
+  }
+
+  // ======== POPULAR EDIÇÃO =========
+  function populateAllFromSaved(latest){
+    if (!latest?.dados) return;
+
+    if (latest.preenchidoPor) document.getElementById('preenchidoPorNome').value = latest.preenchidoPor;
+    populateSchema(STATE.schema, latest.dados);
+
+    STATE.editing = true;
+    STATE.editingSubmissionId = latest.submissionId;
+    setEditStatus();
+    document.getElementById('btnNovoRegistro').style.display='inline-flex';
+  }
+
+  function populateSchema(schema, dados){
+    (schema.sections || []).forEach(secObj=>{
+      (secObj.fields || []).forEach(f=>{
+        const el = document.getElementById(`f_${f.id}`);
+        if (!el) return;
+        const v = dados[f.id];
+
+        if ((f.mask || '').toUpperCase() === 'BRL'){
+          el.value = formatBRLNumber_(Number(v || 0));
+          el.dataset.cents = String(Math.round(Number(v || 0) * 100));
+        } else if (f.type === 'number'){
+          el.value = Number(v || 0);
+        } else {
+          el.value = (v ?? '');
+        }
+      });
+
+      (secObj.tables || []).forEach(t=>{
+        if (t.kind !== 'matrix') return;
+        (t.rows || []).forEach(r=>{
+          (t.cols || []).forEach(c=>{
+            const key = `${t.prefix}_${r.key}_${c.key}`;
+            const el = document.getElementById(`m_${t.prefix}_${r.key}_${c.key}`);
+            if (!el) return;
+            el.value = Number(dados[key] || 0);
+          });
+        });
+        if (t.opts) setTimeout(()=> setupMatrixAuto_(t), 0);
+      });
+
+      if (secObj.repeat){
+        const repId = secObj.repeat.id;
+        const itemsWrap = document.getElementById(`repItems_${repId}`);
+        if (!itemsWrap) return;
+        itemsWrap.innerHTML = '';
+        const list = Array.isArray(dados[repId]) ? dados[repId] : [];
+        list.forEach(obj=>{
+          addRepeatItem(repId, secObj.repeat.itemFields, obj);
+        });
+      }
+    });
+
+    setTimeout(()=> setupAutoTotalsForForm_(STATE.formKey), 0);
+  }
+
+  // ========= REVISÃO / ENVIO =========
+  function startReviewFlow(){
+    if (!STATE.schema || !STATE.formKey || !STATE.unidade) return;
+
+    const comp = document.getElementById('competencia').value;
+    const dp = document.getElementById('dataPreenchimento').value;
+    const preenchidoPor = (document.getElementById('preenchidoPorNome').value || '').trim();
+
+    if (!comp){ showToast('toastSave','Selecione a competência.', true); return; }
+    if (!dp){ showToast('toastSave','Selecione a data de preenchimento.', true); return; }
+    if (preenchidoPor.length < 2){ showToast('toastSave','Informe o nome de quem preencheu.', true); return; }
+
+    const [anoS, mesS] = comp.split('-');
+    const payload = {
+      competencia: comp,
+      ano: Number(anoS),
+      mes: Number(mesS),
+      dataPreenchimento: dp,
+      unidadeId: STATE.unidade.id,
+      unidadeNome: STATE.unidade.nome,
+      unidadeTipo: STATE.unidade.tipo,
+      formKey: STATE.formKey,
+      versao: STATE.schema.versao || 1,
+      preenchidoPor,
+      submissionId: STATE.editing ? STATE.editingSubmissionId : undefined,
+      clientRequestId: genRequestId(),
+      dados: collectFormData(STATE.schema)
+    };
+
+    STATE.pendingPayload = payload;
+    openReview(payload);
+  }
+
+  function openReview(payload){
+    document.getElementById('toastReview').textContent = '';
+    const header = document.getElementById('reviewHeader');
+    header.innerHTML = `
+      <div class="row">
+        <span class="pill"><b>Unidade:</b> ${escapeHtml(payload.unidadeNome)}</span>
+        <span class="pill"><b>Formulário:</b> ${escapeHtml(FORMS_LABEL[payload.formKey] || payload.formKey)}</span>
+        <span class="pill"><b>Competência:</b> ${escapeHtml(payload.competencia)}</span>
+        <span class="pill"><b>Data:</b> ${escapeHtml(payload.dataPreenchimento)}</span>
+        <span class="pill"><b>Preenchido por:</b> ${escapeHtml(payload.preenchidoPor)}</span>
+        ${STATE.editing ? '<span class="pill" style="border-color:#0ea5e9"><b>MODO:</b> EDIÇÃO (24h)</span>' : '<span class="pill"><b>MODO:</b> NOVO</span>'}
+      </div>
+      <div class="small" style="margin-top:8px">Confira tudo. Se estiver certo, clique em <b>Confirmar e enviar</b>.</div>
+    `;
+
+    const reviewBody = document.getElementById('reviewBody');
+    reviewBody.innerHTML = buildReviewHtml(STATE.schema, payload.dados);
+
+    document.getElementById('modalReview').classList.add('show');
+  }
+
+  function closeReview(){
+    document.getElementById('modalReview').classList.remove('show');
+  }
+
+  function confirmSend(){
+    const payload = STATE.pendingPayload;
+    if (!payload) return;
+    if (!payload.clientRequestId) payload.clientRequestId = genRequestId();
+
+    const btn = document.getElementById('btnConfirmarEnvio');
+    setBtnLoading(btn, true);
+
+    document.getElementById('pillSaving').style.display = 'inline-flex';
+    showToast('toastSave','',false);
+    document.getElementById('toastReview').textContent = '';
+    document.getElementById('pdfLink').style.display = 'none';
+
+    const runner = google.script.run
+      .withSuccessHandler((res)=>{
+        document.getElementById('pillSaving').style.display = 'none';
+        setBtnLoading(btn, false);
+        closeReview();
+
+        if (res?.submissionId){
+          STATE.editing = true;
+          STATE.editingSubmissionId = res.submissionId;
+        }
+
+        STATE.lastPdf = res?.pdfInfo || null;
+        checkLatestEditable();
+
+        if (STATE.lastPdf?.url){
+          const pdfLink = document.getElementById('pdfLink');
+          pdfLink.href = STATE.lastPdf.url;
+          pdfLink.textContent = `Baixar PDF (${STATE.lastPdf.fileName || 'arquivo'})`;
+          pdfLink.style.display = 'inline-flex';
+        }
+
+        showToast('toastSave', res?.message || 'Salvo!', false);
+      })
+      .withFailureHandler((err)=>{
+        document.getElementById('pillSaving').style.display = 'none';
+        setBtnLoading(btn, false);
+        const msg = err?.message || String(err);
+        document.getElementById('toastReview').textContent = msg;
+        document.getElementById('toastReview').className = 'toast err';
+        showToast('toastSave', msg, true);
+      });
+
+    if (STATE.editing && payload.submissionId){
+      runner.api_updateSubmission(payload);
+    } else {
+      runner.api_saveSubmission(payload);
+    }
+  }
+
+  function buildReviewHtml(schema, dados){
+    const parts = [];
+
+    (schema.sections || []).forEach(secObj=>{
+      const rows = [];
+
+      if (secObj.fields && secObj.fields.length){
+        secObj.fields.forEach(f=>{
+          const v = dados[f.id];
+          let showV = (v === undefined || v === null) ? '' : String(v);
+          if ((f.mask || '').toUpperCase() === 'BRL') showV = formatBRLNumber_(Number(v || 0));
+          rows.push([f.label || f.id, showV]);
+        });
+      }
+
+      if (secObj.tables && secObj.tables.length){
+        secObj.tables.forEach(t=>{
+          if (t.kind !== 'matrix') return;
+          (t.rows||[]).forEach(r=>{
+            (t.cols||[]).forEach(c=>{
+              const k = `${t.prefix}_${r.key}_${c.key}`;
+              const v = dados[k];
+              rows.push([`${t.title} • ${r.label} / ${c.label}`, String(v ?? 0)]);
+            });
+          });
+        });
+      }
+
+      if (secObj.repeat){
+        const repId = secObj.repeat.id;
+        const arr = Array.isArray(dados[repId]) ? dados[repId] : [];
+        if (!arr.length){
+          rows.push([secObj.title, '— (sem ações informadas)']);
+        } else {
+          arr.forEach((obj, i)=>{
+            secObj.repeat.itemFields.forEach(f=>{
+              const vv = obj?.[f.id];
+              let showV = String(vv ?? '');
+              if ((f.mask || '').toUpperCase() === 'BRL') showV = formatBRLNumber_(Number(vv || 0));
+              rows.push([`${secObj.title} • #${i+1} • ${f.label}`, showV]);
+            });
+          });
+        }
+      }
+
+      if (rows.length){
+        parts.push(`
+          <details open>
+            <summary>${escapeHtml(secObj.title || 'Seção')}</summary>
+            <table class="kv">
+              ${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td></tr>`).join('')}
+            </table>
+          </details>
+        `);
+      }
+    });
+
+    return parts.join('');
+  }
+
+  function showToast(id, msg, isErr){
+    const el = document.getElementById(id);
+    el.textContent = msg || '';
+    el.className = 'toast' + (msg ? (isErr ? ' err' : ' ok') : '');
+  }
+
+  function escapeHtml(s){
+    return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+
+  // ========= PAINEL / RELATÓRIOS =========
+  function openDashboard(){
+    if (!BOOT) return;
+    initDashboardDefaults();
+    showPage('pageDashboard');
+    fillDashboardSelects();
+    updateDashSelectionPill();
+    showToast('toastDash','',false);
+    document.getElementById('linhaOk').textContent = '';
+  }
+
+  function initDashboardDefaults(){
+    const comp = document.getElementById('competencia').value || '';
+    if (comp){
+      if (!document.getElementById('dashCompFrom').value) document.getElementById('dashCompFrom').value = comp;
+      if (!document.getElementById('dashCompTo').value) document.getElementById('dashCompTo').value = comp;
+    }
+  }
+
+  function fillDashboardSelects(){
+    if (DASH.selectsFilled) return;
+    DASH.selectsFilled = true;
+
+    const formSel = document.getElementById('dashForm');
+    formSel.innerHTML = '';
+    Object.keys(FORMS_LABEL).forEach(k=>{
+      const opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = FORMS_LABEL[k];
+      formSel.appendChild(opt);
+    });
+    if (!formSel.value) formSel.value = 'RMA_CRAS';
+
+    const uSel = document.getElementById('dashUnidade');
+    uSel.innerHTML = '';
+    const oAll = document.createElement('option');
+    oAll.value = 'TODAS';
+    oAll.textContent = 'TODAS AS UNIDADES';
+    uSel.appendChild(oAll);
+
+    (BOOT.unidades || []).forEach(u=>{
+      const o = document.createElement('option');
+      o.value = u.id;
+      o.textContent = `${u.nome} (${tipoLabel(u.tipo)})`;
+      uSel.appendChild(o);
+    });
+
+    fillIndicadoresForForm(formSel.value);
+    updateDashSelectionPill();
+  }
+
+  function fillIndicadoresForForm(formKey){
+    const sel = document.getElementById('dashIndicador');
+    sel.innerHTML = '';
+
+    const schema = SCHEMA[formKey];
+    if (!schema){
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Sem schema (não modelado)';
+      sel.appendChild(opt);
+      updateDashSelectionPill();
+      return;
+    }
+
+    const indicators = listIndicatorsFromSchema(formKey, schema);
+
+    indicators.forEach(it=>{
+      const o = document.createElement('option');
+      o.value = it.key;
+      o.textContent = it.label;
+      o.dataset.short = it.short || it.label;
+      o.dataset.isMoney = it.isMoney ? '1' : '0';
+      sel.appendChild(o);
+    });
+
+    if (sel.options.length) sel.selectedIndex = 0;
+    updateDashSelectionPill();
+  }
+
+  function listIndicatorsFromSchema(formKey, schema){
+    const list = [];
+    const seen = new Set();
+
+    (schema.sections || []).forEach(secObj=>{
+      (secObj.fields || []).forEach(f=>{
+        const isMoney = ((f.mask || '').toUpperCase() === 'BRL');
+        const isNumeric = (f.type === 'number') || isMoney;
+        if (!isNumeric) return;
+
+        const tag = isMoney ? ' (R$)' : '';
+        const item = {
+          key: f.id,
+          label: `${secObj.title} • ${f.label}${tag}`,
+          short: `${f.label}${tag}`,
+          isMoney
+        };
+        if (!seen.has(item.key)){
+          seen.add(item.key);
+          list.push(item);
+        }
+      });
+
+      (secObj.tables || []).forEach(t=>{
+        if (t.kind !== 'matrix') return;
+        (t.rows||[]).forEach(r=>{
+          (t.cols||[]).forEach(c=>{
+            const key = `${t.prefix}_${r.key}_${c.key}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            list.push({
+              key,
+              label: `${secObj.title} • ${t.title} • ${r.label} / ${c.label}`,
+              short: `${t.prefix} • ${r.label} / ${c.label}`,
+              isMoney:false
+            });
+          });
+        });
+      });
+    });
+
+    return list;
+  }
+
+  function updateDashSelectionPill(){
+    const indSel = document.getElementById('dashIndicador');
+    const indOpt = indSel?.selectedOptions?.[0];
+    const short = indOpt?.dataset?.short || '—';
+    document.getElementById('dashPillSel').textContent = `Indicador: ${short}`;
+
+    const formKey = document.getElementById('dashForm').value || '—';
+    const de = document.getElementById('dashCompFrom').value || '—';
+    const ate = document.getElementById('dashCompTo').value || '—';
+    const unid = document.getElementById('dashUnidade').value || 'TODAS';
+    const modo = document.getElementById('dashModo').value || 'SERIE';
+
+    document.getElementById('linhaMeta').innerHTML = `
+      <span class="pill">Form: ${escapeHtml(formKey)}</span>
+      <span class="pill">De: ${escapeHtml(de)}</span>
+      <span class="pill">Até: ${escapeHtml(ate)}</span>
+      <span class="pill">Unid: ${escapeHtml(unid)}</span>
+      <span class="pill">Modo: ${escapeHtml(modo)}</span>
+    `;
+  }
+
+  function runDashboard(){
+    const btn = document.getElementById('btnGerarDash');
+    setBtnLoading(btn, true);
+    showToast('toastDash','Gerando...',false);
+    document.getElementById('linhaOk').textContent = '';
+
+    const formKey = document.getElementById('dashForm').value;
+    const indicadorKey = document.getElementById('dashIndicador').value;
+    const compFrom = document.getElementById('dashCompFrom').value || '';
+    const compTo = document.getElementById('dashCompTo').value || '';
+    const unidadeId = document.getElementById('dashUnidade').value || 'TODAS';
+    const modo = document.getElementById('dashModo').value || 'SERIE';
+    const tipoGraf = document.getElementById('dashTipoGraf').value || 'line';
+
+    const indOpt = document.getElementById('dashIndicador')?.selectedOptions?.[0];
+    const isMoney = indOpt?.dataset?.isMoney === '1';
+
+    google.script.run
+      .withSuccessHandler((res)=>{
+        setBtnLoading(btn, false);
+
+        const meta = res?.meta || { totalRegistros:0, totalValor:0 };
+        const totalTxt = isMoney ? formatBRLNumber_(meta.totalValor || 0) : String(meta.totalValor || 0);
+
+        document.getElementById('linhaOk').className = 'okline';
+        document.getElementById('linhaOk').textContent = `Registros lidos: ${meta.totalRegistros || 0} • Soma no período: ${totalTxt}`;
+        showToast('toastDash','',false);
+
+        const labels = [];
+        const data = [];
+
+        if (modo === 'RANK'){
+          (res.byUnit || []).forEach(it=>{
+            labels.push(it.unidade);
+            data.push(Number(it.valor || 0));
+          });
+          renderDashChart(labels, data, tipoGraf, isMoney);
+          renderDashTableRank(res.byUnit || [], isMoney, meta.totalValor);
+        } else {
+          (res.series || []).forEach(it=>{
+            labels.push(it.competencia);
+            data.push(Number(it.valor || 0));
+          });
+          renderDashChart(labels, data, tipoGraf, isMoney);
+          renderDashTableSerie(res.series || [], isMoney, meta.totalValor);
+        }
+
+        document.getElementById('btnBaixarPng').disabled = !(DASH.chart);
+      })
+      .withFailureHandler((err)=>{
+        setBtnLoading(btn, false);
+        document.getElementById('linhaOk').className = 'errline';
+        document.getElementById('linhaOk').textContent = err?.message || String(err);
+        showToast('toastDash', err?.message || String(err), true);
+        document.getElementById('btnBaixarPng').disabled = true;
+      })
+      .api_getDashboardData({
+        formKey,
+        indicadorKey,
+        competenciaFrom: compFrom,
+        competenciaTo: compTo,
+        unidadeId
+      });
+  }
+
+  function renderDashChart(labels, values, type, isMoney){
+    const ctx = document.getElementById('dashChart');
+    if (DASH.chart){
+      try { DASH.chart.destroy(); } catch(e){}
+      DASH.chart = null;
+    }
+    if (!labels.length){
+      document.getElementById('dashTableWrap').innerHTML = '<div class="small">Sem dados para o filtro selecionado.</div>';
+      return;
+    }
+
+    DASH.chart = new Chart(ctx, {
+      type: type || 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: isMoney ? 'Valor (R$)' : 'Valor',
+          data: values
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: true },
+          tooltip: {
+            callbacks: {
+              label: (c)=>{
+                const v = Number(c.raw || 0);
+                return (isMoney ? formatBRLNumber_(v) : String(v));
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: (v)=> isMoney ? formatBRLNumber_(v) : v
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function _sumValues_(arr){
+    return (arr || []).reduce((s, it)=> s + Number(it?.valor || it?.valorTotal || it?.v || 0), 0);
+  }
+
+  /* ✅ AJUSTE: SÉRIE agora mostra Soma no período na tabela (tfoot + linha abaixo) */
+  function renderDashTableSerie(series, isMoney, totalFromMeta){
+    const rows = (series || []).map(it=>{
+      const v = Number(it.valor || 0);
+      return [it.competencia, v];
+    });
+
+    const computed = rows.reduce((s, r)=> s + Number(r[1] || 0), 0);
+    const total = (totalFromMeta !== undefined && totalFromMeta !== null) ? Number(totalFromMeta || 0) : computed;
+    const totalTxt = isMoney ? formatBRLNumber_(total) : String(total);
+
+    const html = `
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn ghost miniBtn" type="button" onclick="copyDashTable()">Copiar tabela</button>
+      </div>
+
+      <div class="tableScroll">
+        <table>
+          <thead><tr><th>Competência</th><th>Valor</th></tr></thead>
+          <tbody>
+            ${rows.map(r=>{
+              const vTxt = isMoney ? formatBRLNumber_(r[1]) : String(r[1]);
+              return `<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(vTxt)}</td></tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Soma no período</th>
+              <th>${escapeHtml(totalTxt)}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="small" style="margin-top:8px">
+        <b>Soma no período:</b> ${escapeHtml(totalTxt)}
+      </div>
+    `;
+    document.getElementById('dashTableWrap').innerHTML = html;
+  }
+
+  /* ✅ AJUSTE: RANK agora mostra Soma no período na tabela (tfoot + linha abaixo) */
+  function renderDashTableRank(list, isMoney, totalFromMeta){
+    const rows = (list || []).map(it=>{
+      const v = Number(it.valor || 0);
+      return [it.unidade, v];
+    });
+
+    const computed = rows.reduce((s, r)=> s + Number(r[1] || 0), 0);
+    const total = (totalFromMeta !== undefined && totalFromMeta !== null) ? Number(totalFromMeta || 0) : computed;
+    const totalTxt = isMoney ? formatBRLNumber_(total) : String(total);
+
+    const html = `
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn ghost miniBtn" type="button" onclick="copyDashTable()">Copiar tabela</button>
+      </div>
+
+      <div class="tableScroll">
+        <table>
+          <thead><tr><th>Unidade</th><th>Valor</th></tr></thead>
+          <tbody>
+            ${rows.map(r=>{
+              const vTxt = isMoney ? formatBRLNumber_(r[1]) : String(r[1]);
+              return `<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(vTxt)}</td></tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Soma no período</th>
+              <th>${escapeHtml(totalTxt)}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="small" style="margin-top:8px">
+        <b>Soma no período:</b> ${escapeHtml(totalTxt)}
+      </div>
+    `;
+    document.getElementById('dashTableWrap').innerHTML = html;
+  }
+
+  function copyDashTable(){
+    const wrap = document.getElementById('dashTableWrap');
+    const t = wrap?.querySelector('table');
+    if (!t) return;
+
+    const rows = [];
+    t.querySelectorAll('tr').forEach(tr=>{
+      const cols = Array.from(tr.querySelectorAll('th,td')).map(td=>td.innerText.replace(/\s+/g,' ').trim());
+      rows.push(cols.join('\t'));
+    });
+
+    const text = rows.join('\n');
+    navigator.clipboard?.writeText(text).then(()=>{
+      showToast('toastDash','Tabela copiada (CTRL+V no Word/Excel).', false);
+    }).catch(()=>{
+      showToast('toastDash','Não consegui copiar automaticamente. Selecione e copie manualmente.', true);
+    });
+  }
+
+  function downloadDashboardPng(){
+    if (!DASH.chart) return;
+    const a = document.createElement('a');
+    a.href = DASH.chart.toBase64Image();
+    a.download = `painel_${document.getElementById('dashForm').value}_${Date.now()}.png`;
+    a.click();
+  }
+
+  function loadBaseFlatPreview(){
+    showToast('toastDash','Carregando BASE_FLAT...',false);
+
+    const q = {
+      formKey: document.getElementById('dashForm').value,
+      unidadeId: document.getElementById('dashUnidade').value || 'TODAS',
+      competenciaFrom: document.getElementById('dashCompFrom').value || '',
+      competenciaTo: document.getElementById('dashCompTo').value || '',
+      limit: 300
+    };
+
+    google.script.run
+      .withSuccessHandler((res)=>{
+        const header = res?.header || [];
+        const rows = res?.rows || [];
+        if (!rows.length){
+          document.getElementById('baseFlatWrap').innerHTML = '<div class="small">Sem linhas para o filtro selecionado.</div>';
+          return;
+        }
+
+        const html = `
+          <div class="row" style="margin-bottom:8px">
+            <span class="pill">Linhas: ${rows.length}</span>
+            <button class="btn ghost miniBtn" type="button" onclick="copyBaseFlat()">Copiar (tudo)</button>
+          </div>
+          <div class="tableScroll">
+            <table id="tblBaseFlat">
+              <thead>
+                <tr>${header.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr>
+              </thead>
+              <tbody>
+                ${rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHtml(String(c ?? ''))}</td>`).join('')}</tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+        document.getElementById('baseFlatWrap').innerHTML = html;
+      })
+      .withFailureHandler((err)=>{
+        document.getElementById('baseFlatWrap').innerHTML = `<div class="small" style="color:#dc2626">${escapeHtml(err?.message || String(err))}</div>`;
+      })
+      .api_queryBaseFlat(q);
+  }
+
+  function copyBaseFlat(){
+    const t = document.getElementById('tblBaseFlat');
+    if (!t) return;
+    const rows = [];
+    t.querySelectorAll('tr').forEach(tr=>{
+      const cols = Array.from(tr.querySelectorAll('th,td')).map(td=>td.innerText.replace(/\s+/g,' ').trim());
+      rows.push(cols.join('\t'));
+    });
+    const text = rows.join('\n');
+    navigator.clipboard?.writeText(text).then(()=>{
+      showToast('toastDash','BASE_FLAT copiada (CTRL+V no Excel).', false);
+    }).catch(()=>{
+      showToast('toastDash','Não consegui copiar automaticamente. Selecione e copie manualmente.', true);
+    });
+  }
+</script>
+</body>
+</html>
