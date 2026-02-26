@@ -1,12 +1,12 @@
 
-const PLANILHA_ID    = '1_jNjcdd27uAqJ-TpfMFvPIAYVAmhZKK6Piyc_DOFjhY';
-const ID_TEMPLATE    = '1H9ptzXaKu0I9Ngg48e3lhMVTUzKQa863fkgTU4xdEjE';
-const FOLDER_PDFS_ID = '13fA080P3J-9qxWNgcRUvCVOt8sTwYDcY';
+const PLANILHA_ID    = '';
+const ID_TEMPLATE    = '';
+const FOLDER_PDFS_ID = '';
 const TZ             = 'America/Sao_Paulo';
 
 // RMA - pastas de templates e saida (configure com IDs do Drive)
-const RMA_TEMPLATES_FOLDER_ID = '1g3vu98thBzPsY_GoYqBbuxP2tcbZC-5m';
-const RMA_OUTPUT_FOLDER_ID = '1g3vu98thBzPsY_GoYqBbuxP2tcbZC-5m';
+const RMA_TEMPLATES_FOLDER_ID = '';
+const RMA_OUTPUT_FOLDER_ID = '';
 
 const RESPOSTAS_SHEET_NAME = 'Respostas';
 const CPF_HEADER           = 'CPF';
