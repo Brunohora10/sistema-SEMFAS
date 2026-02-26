@@ -1,7 +1,7 @@
 
 const PLANILHA_ID    = '1_jNjcdd27uAqJ-TpfMFvPIAYVAmhZKK6Piyc_DOFjhY';
 const ID_TEMPLATE    = '1H9ptzXaKu0I9Ngg48e3lhMVTUzKQa863fkgTU4xdEjE';
-const FOLDER_PDFS_ID = '1VhKkhGVFACNA8DYDj54L_ByxhyU4Dz-n';
+const FOLDER_PDFS_ID = '13fA080P3J-9qxWNgcRUvCVOt8sTwYDcY';
 const TZ             = 'America/Sao_Paulo';
 
 // RMA - pastas de templates e saida (configure com IDs do Drive)
@@ -146,6 +146,9 @@ function apiDispatch_(e){
   try {
     switch(api){
       // ===== TI =====
+      case 'ti_ping':
+        return __json_(ti_ping(input));
+
       case 'ti_boot':
       case 'ti_init':
         return __json_(ti_boot(input));
@@ -159,6 +162,11 @@ function apiDispatch_(e){
       case 'ti_abrir':
       case 'ti_detalhe':
         return __json_(ti_obterChamado(input));
+
+      case 'ti_drive_anexos':
+      case 'ti_anexos_drive':
+      case 'ti_attachments':
+        return __json_(ti_listarAnexosDrive(input));
 
       case 'ti_create':
       case 'ti_novo':
@@ -181,6 +189,31 @@ function apiDispatch_(e){
 
       case 'ti_set_tecnico':
         return __json_(ti_setTecnicoAtual(input));
+
+      case 'ti_public_meta':
+      case 'ti_meta_publico':
+        return __json_(ti_public_meta(input));
+
+      case 'ti_public_create':
+      case 'ti_criar_publico':
+      case 'ti_open_public':
+        return __json_(ti_public_create(input));
+
+      case 'ti_chat_send':
+      case 'ti_chat_post':
+        return __json_(ti_chat_enviar(input));
+
+      case 'ti_chat_list':
+      case 'ti_chat_messages':
+        return __json_(ti_chat_listar(input));
+
+      case 'ti_public_chat_send':
+      case 'ti_public_chat_post':
+        return __json_(ti_public_chat_send(input));
+
+      case 'ti_public_chat_list':
+      case 'ti_public_chat_messages':
+        return __json_(ti_public_chat_list(input));
 
       // ===== MÁQUINAS =====
       case 'maq_list':
@@ -587,15 +620,54 @@ function setPublicSharing_(file){
 
 function buildDriveLinks_(id){
   return {
+    view:`https://drive.google.com/file/d/${id}/view`,
     preview:`https://drive.google.com/file/d/${id}/preview`,
     download:`https://drive.google.com/uc?export=download&id=${id}`
   };
 }
 
+function ti__getOrCreateProtocoloFolder_(protocolo){
+  const root = DriveApp.getFolderById(FOLDER_PDFS_ID);
+  const name = safeFolderName_(String(protocolo || '').trim() || 'SEM_PROTOCOLO');
+  const it = root.getFoldersByName(name);
+  return it.hasNext() ? it.next() : root.createFolder(name);
+}
+
+function ti__listDriveFilesByFolderId_(folderId, maxItems){
+  const id = String(folderId || '').trim();
+  if (!id) return { links: [], nomes: [] };
+
+  const limit = Math.min(Math.max(parseInt(maxItems || 20, 10) || 20, 1), 40);
+  const links = [];
+  const nomes = [];
+
+  try {
+    const folder = DriveApp.getFolderById(id);
+    const it = folder.getFiles();
+    let scanned = 0;
+    while (it.hasNext() && links.length < limit && scanned < 300) {
+      scanned++;
+      const file = it.next();
+      try {
+        if (!file) continue;
+        const fileId = file.getId();
+        const nome = String(file.getName() || ('Anexo ' + (links.length + 1))).trim();
+        if (!fileId) continue;
+        try { setPublicSharing_(file); } catch(_){ }
+        const lnk = buildDriveLinks_(fileId);
+        links.push(lnk.view || file.getUrl());
+        nomes.push(nome || ('Anexo ' + links.length));
+      } catch(_){ }
+    }
+  } catch(_){ }
+
+  return { links, nomes };
+}
+
 /** ***********************
  *  ASSINATURA DIGITAL
  **************************/
-function dataUrlToBlob_(dataUrl, defaultMime) {
+function dataUrlToBlob_(dataUrl, defaultMime, fileName) {
   if (!dataUrl) return null;
   const str = String(dataUrl);
   let mime = defaultMime || MimeType.PNG;
@@ -605,7 +677,7 @@ function dataUrlToBlob_(dataUrl, defaultMime) {
   if (m) { mime = m[1]; b64 = m[2]; }
 
   const bytes = Utilities.base64Decode(b64);
-  return Utilities.newBlob(bytes, mime, 'assinatura.png');
+  return Utilities.newBlob(bytes, mime, fileName || 'arquivo');
 }
 
 function insertSignatureImageAtPlaceholder_(body, placeholderKey, blob) {
@@ -2459,6 +2531,8 @@ function excluirUsuarioLogin(linha){
  ************************/
 const TI_SHEET_NAME = 'Chamados';
 const TI_HIST_SHEET = 'Chamados_Historico';
+const TI_CHAT_SHEET = 'Chamados_Chat';
+const TI_PUBLIC_TOKEN_PROP = 'TI_PUBLIC_TOKEN';
 
 function ensureTiSheets_(){
   try { ti__ensureSheets_(); return true; }
@@ -2479,8 +2553,17 @@ function ti__defaultHeaders_(){
   return [
     'Carimbo','Protocolo','Nome','Email','Telefone','Setor/Local',
     'Categoria','Prioridade','Descrição','Status','Responsável',
-    'Atualizado em','Obs','Anexo (Link)','Anexo (Nome)'
+    'Atualizado em','Obs','Anexo (Link)','Anexo (Nome)','Anexo (Pasta ID)',
+    'TI Última Leitura','Solicitante Última Leitura'
   ];
+}
+
+/** Versionamento de cache para listas TI */
+function ti__cacheVer_(){
+  try{ return CacheService.getScriptCache().get('ti_list_ver') || '0'; }catch(_){ return '0'; }
+}
+function ti__bumpCacheVer_(){
+  try{ const c = CacheService.getScriptCache(); const v = parseInt(c.get('ti_list_ver')||'0',10)+1; c.put('ti_list_ver',String(v),600); }catch(_){}
 }
 
 function ti__ensureHeaders_(sh, headers){
@@ -2516,6 +2599,339 @@ function ti__idx_(headers, name){
   return h.indexOf(String(name||'').trim().toLowerCase());
 }
 
+function ti__idxAny_(headers){
+  for (let i = 1; i < arguments.length; i++) {
+    const idx = ti__idx_(headers, arguments[i]);
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function ti__extractUrls_(text){
+  const s = String(text || '');
+  if (!s) return [];
+  const m = s.match(/https?:\/\/[^\s)"']+/g);
+  return (m || []).map(u => String(u || '').trim()).filter(Boolean);
+}
+
+function ti__extractUrlsFromFormula_(formula){
+  const src = String(formula || '').trim();
+  if (!src) return [];
+  const urls = [];
+  const quoted = src.match(/"https?:\/\/[^\"]+"/g) || [];
+  quoted.forEach((q) => {
+    const u = String(q || '').replace(/^"|"$/g, '').trim();
+    if (u) urls.push(u);
+  });
+  if (!urls.length) return ti__extractUrls_(src);
+  return urls;
+}
+
+function ti__extractUrlsFromCell_(range){
+  const found = [];
+  const add = (u) => {
+    const v = String(u || '').trim();
+    if (v) found.push(v);
+  };
+
+  try {
+    const rt = range.getRichTextValue();
+    if (rt) {
+      const root = rt.getLinkUrl();
+      if (root) add(root);
+      const runs = rt.getRuns() || [];
+      runs.forEach((r) => {
+        try {
+          const u = r.getLinkUrl();
+          if (u) add(u);
+        } catch(_){ }
+      });
+    }
+  } catch(_){ }
+
+  try {
+    const formula = range.getFormula();
+    ti__extractUrlsFromFormula_(formula).forEach(add);
+  } catch(_){ }
+
+  try {
+    const display = range.getDisplayValue();
+    ti__extractUrls_(display).forEach(add);
+  } catch(_){ }
+
+  const uniq = [];
+  const seen = Object.create(null);
+  found.forEach((u) => {
+    if (seen[u]) return;
+    seen[u] = true;
+    uniq.push(u);
+  });
+  return uniq;
+}
+
+function ti__parseAnexosFromCell_(raw){
+  const src = String(raw || '').trim();
+  if (!src) return { links: [], nomes: [] };
+
+  const lines = src.split(/\r?\n|\s*;\s*/).map(x => String(x || '').trim()).filter(Boolean);
+  const links = [];
+  const nomes = [];
+
+  lines.forEach((line) => {
+    const urls = ti__extractUrls_(line);
+    if (!urls.length) return;
+
+    urls.forEach((url) => {
+      links.push(url);
+      let nome = line.replace(url, '').replace(/[\-–—:|]+$/g, '').trim();
+      if (!nome) nome = '';
+      nomes.push(nome);
+    });
+  });
+
+  if (!links.length) {
+    const urls = ti__extractUrls_(src);
+    return { links: urls, nomes: urls.map(() => '') };
+  }
+
+  return { links, nomes };
+}
+
+function ti__collectUrlsFromRow_(sh, rowRef){
+  const urls = [];
+  const add = (u) => {
+    const v = String(u || '').trim();
+    if (v && /^https?:\/\//i.test(v)) urls.push(v);
+  };
+
+  try {
+    const lc = sh.getLastColumn();
+    const range = sh.getRange(rowRef, 1, 1, lc);
+
+    const values = range.getDisplayValues()[0] || [];
+    values.forEach((v) => ti__extractUrls_(v).forEach(add));
+
+    const formulas = range.getFormulas()[0] || [];
+    formulas.forEach((f) => ti__extractUrlsFromFormula_(f).forEach(add));
+
+    const rich = range.getRichTextValues()[0] || [];
+    rich.forEach((rt) => {
+      try {
+        if (!rt) return;
+        const root = rt.getLinkUrl();
+        if (root) add(root);
+        const runs = rt.getRuns() || [];
+        runs.forEach((r) => {
+          try {
+            const u = r.getLinkUrl();
+            if (u) add(u);
+          } catch(_){ }
+        });
+      } catch(_){ }
+    });
+  } catch(_){ }
+
+  const uniq = [];
+  const seen = Object.create(null);
+  urls.forEach((u) => {
+    if (seen[u]) return;
+    seen[u] = true;
+    uniq.push(u);
+  });
+  return uniq;
+}
+
+function ti__findDriveAnexosByProtocolo_(protocolo, maxItems){
+  const id = String(protocolo || '').trim();
+  if (!id) return { links: [], nomes: [] };
+
+  const limit = Math.min(Math.max(parseInt(maxItems || 10, 10) || 10, 1), 30);
+  const links = [];
+  const nomes = [];
+  const seen = Object.create(null);
+  const idUp = id.toUpperCase();
+  const idCompact = idUp.replace(/[^A-Z0-9]/g, '');
+  const idNoTi = idUp.replace(/^TI-/, '');
+  const idNoTiCompact = idNoTi.replace(/[^A-Z0-9]/g, '');
+
+  const hasProto = (nome) => {
+    const n = String(nome || '').trim();
+    if (!n) return false;
+    const nUp = n.toUpperCase();
+    const nCompact = nUp.replace(/[^A-Z0-9]/g, '');
+    if (nUp.indexOf(idUp) >= 0) return true;
+    if (idCompact && nCompact.indexOf(idCompact) >= 0) return true;
+    if (idNoTi && nUp.indexOf(idNoTi) >= 0) return true;
+    if (idNoTiCompact && nCompact.indexOf(idNoTiCompact) >= 0) return true;
+    return false;
+  };
+
+  const addFile = (file, acceptAnyName) => {
+    try {
+      if (!file) return;
+      const nome = String(file.getName() || '').trim();
+      if (!nome) return;
+      if (!acceptAnyName && !hasProto(nome)) return;
+      const fileId = file.getId();
+      if (!fileId || seen[fileId]) return;
+      seen[fileId] = true;
+      try { setPublicSharing_(file); } catch(_){ }
+      const driveLinks = buildDriveLinks_(fileId);
+      links.push(driveLinks.view || file.getUrl());
+      nomes.push(nome);
+    } catch(_){ }
+  };
+
+  try {
+    const root = DriveApp.getFolderById(FOLDER_PDFS_ID);
+    const byProto = root.getFoldersByName(id);
+    if (byProto.hasNext()) {
+      const pFolder = byProto.next();
+      const fit = pFolder.getFiles();
+      let scanned = 0;
+      while (fit.hasNext() && links.length < limit && scanned < 120) {
+        scanned++;
+        addFile(fit.next(), true);
+      }
+    }
+  } catch(_){ }
+
+  const runSearch = (token) => {
+    const q = String(token || '').trim().replace(/'/g, "\\'");
+    if (!q) return;
+    try {
+      const it = DriveApp.searchFiles(`trashed = false and title contains '${q}'`);
+      let scanned = 0;
+      while (it.hasNext() && links.length < limit && scanned < 220) {
+        scanned++;
+        addFile(it.next());
+      }
+    } catch(_){ }
+  };
+
+  try {
+    runSearch(id);
+    if (links.length < limit && idNoTi && idNoTi !== id) runSearch(idNoTi);
+  } catch(_){ }
+
+  if (!links.length) {
+    try {
+      const folder = DriveApp.getFolderById(FOLDER_PDFS_ID);
+      const it = folder.getFiles();
+      let scanned = 0;
+      while (it.hasNext() && links.length < limit && scanned < 180) {
+        scanned++;
+        addFile(it.next());
+      }
+    } catch(_){ }
+  }
+
+  return { links, nomes };
+}
+
+function ti_listarAnexosDrive(input){
+  input = input || {};
+  const protocolo = String(input.id || input.protocolo || '').trim();
+  if (!protocolo) return { ok:false, msg:'Protocolo obrigatório.' };
+
+  const maxItems = Math.min(Math.max(parseInt(input.limit || input.max || 20, 10) || 20, 1), 30);
+  let folderId = String(input.folderId || input.pastaId || '').trim();
+
+  if (!folderId) {
+    try {
+      const { sh, headers } = ti__ensureSheets_();
+      const rowRef = ti__findRowByProtocolo_(sh, headers, protocolo);
+      if (rowRef > 0) {
+        const iFld = ti__idxAny_(headers, 'Anexo (Pasta ID)', 'Anexo Pasta ID', 'Pasta Anexo ID', 'Pasta ID');
+        if (iFld >= 0) folderId = String(sh.getRange(rowRef, iFld + 1).getDisplayValue() || '').trim();
+      }
+    } catch(_){ }
+  }
+
+  let drivePack = { links: [], nomes: [] };
+  if (folderId) drivePack = ti__listDriveFilesByFolderId_(folderId, maxItems);
+  if (!drivePack.links || !drivePack.links.length) {
+    drivePack = ti__findDriveAnexosByProtocolo_(protocolo, maxItems);
+  }
+
+  return {
+    ok: true,
+    id: protocolo,
+    anexoFolderId: folderId || '',
+    anexoLinks: drivePack.links || [],
+    anexoNomes: drivePack.nomes || [],
+    total: (drivePack.links || []).length
+  };
+}
+
+function ti__chatNormalize_(s){
+  return String(s || '').replace(/\s+/g, ' ').trim();
+}
+
+function ti__chatFindRecentDuplicate_(chat, idx, payload){
+  const protocolo = String(payload.protocolo || '').trim();
+  const autorTipo = String(payload.autorTipo || '').trim().toUpperCase();
+  const autorNome = String(payload.autorNome || '').trim().toLowerCase();
+  const mensagem  = ti__chatNormalize_(payload.mensagem || '');
+  const now = payload.now instanceof Date ? payload.now : new Date();
+  const windowMs = Math.max(500, parseInt(payload.windowMs || 4000, 10) || 4000);
+
+  if (!protocolo || !mensagem) return null;
+
+  const lastRow = chat.getLastRow();
+  if (lastRow < 2) return null;
+
+  const scanRows = Math.min(lastRow - 1, 120);
+  const startRow = lastRow - scanRows + 1;
+  const vals = chat.getRange(startRow, 1, scanRows, chat.getLastColumn()).getValues();
+
+  for (let i = vals.length - 1; i >= 0; i--) {
+    const row = vals[i];
+    if (String(row[idx.prot] || '').trim() !== protocolo) continue;
+
+    const t = String(row[idx.tipo] || '').trim().toUpperCase();
+    if (t !== autorTipo) continue;
+
+    const n = String(row[idx.nome] || '').trim().toLowerCase();
+    if (n !== autorNome) continue;
+
+    const m = ti__chatNormalize_(row[idx.msg] || '');
+    if (m !== mensagem) continue;
+
+    const when = row[idx.car] instanceof Date ? row[idx.car] : parseAnyDate(row[idx.car]);
+    if (!when) continue;
+
+    const delta = now.getTime() - when.getTime();
+    if (delta < 0 || delta > windowMs) continue;
+
+    return {
+      quando: Utilities.formatDate(when, TZ, "yyyy-MM-dd'T'HH:mm:ss"),
+      protocolo,
+      autorTipo: t,
+      autorNome: String(row[idx.nome] || '').trim() || payload.autorNome || '',
+      mensagem: String(row[idx.msg] || '').trim(),
+      canal: String(row[idx.can] || '').trim() || String(payload.canal || 'WEB')
+    };
+  }
+
+  return null;
+}
+
+function ti__findRowByProtocolo_(sh, headers, protocolo){
+  const id = String(protocolo || '').trim();
+  if (!id) return -1;
+  const iProt = ti__idx_(headers, 'Protocolo');
+  if (iProt < 0 || sh.getLastRow() < 2) return -1;
+  try {
+    const tf = sh.getRange(2, iProt + 1, sh.getLastRow() - 1, 1)
+      .createTextFinder(id)
+      .matchEntireCell(true)
+      .findNext();
+    if (tf) return tf.getRow();
+  } catch(_){ }
+  return -1;
+}
+
 function ti__ensureSheets_(){
   const sh = ti__sheet_(TI_SHEET_NAME);
   const headers = ti__ensureHeaders_(sh, ti__defaultHeaders_());
@@ -2523,7 +2939,10 @@ function ti__ensureSheets_(){
   const hist = ti__sheet_(TI_HIST_SHEET);
   ti__ensureHeaders_(hist, ['Carimbo','Protocolo','Ação','Detalhes','Usuário','Setor']);
 
-  return { sh, headers, hist };
+  const chat = ti__sheet_(TI_CHAT_SHEET);
+  ti__ensureHeaders_(chat, ['Carimbo','Protocolo','Autor Tipo','Autor Nome','Mensagem','Canal']);
+
+  return { sh, headers, hist, chat };
 }
 
 function ti__ctx_(){
@@ -2538,17 +2957,22 @@ function ti__ctx_(){
 function ti__pushHist_(protocolo, acao, detalhes){
   const { hist } = ti__ensureSheets_();
   const c = ti__ctx_();
-  hist.appendRow([ new Date(), protocolo, acao, detalhes || '', c.usuario, c.setor ]);
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try { hist.appendRow([ new Date(), protocolo, acao, detalhes || '', c.usuario, c.setor ]); }
+  finally { lock.releaseLock(); }
 }
 
 function ti__nextProtocolo_(){
   const year = new Date().getFullYear();
   const key = 'TI_SEQ_' + year;
-  const sp = PropertiesService.getScriptProperties();
-  let n = parseInt(sp.getProperty(key) || '0', 10);
-  n++;
-  sp.setProperty(key, String(n));
-  return `TI-${year}-${String(n).padStart(6,'0')}`;
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const sp = PropertiesService.getScriptProperties();
+    let n = parseInt(sp.getProperty(key) || '0', 10);
+    n++;
+    sp.setProperty(key, String(n));
+    return `TI-${year}-${String(n).padStart(6,'0')}`;
+  } finally { lock.releaseLock(); }
 }
 
 function ti__splitContato_(contato){
@@ -2567,20 +2991,288 @@ function ti__normalizePrioridade_(p){
   return String(p||'NORMAL').trim().toUpperCase() || 'NORMAL';
 }
 
+function ti__cleanText_(v, maxLen){
+  const lim = Math.max(1, parseInt(maxLen || 500, 10));
+  return String(v || '').replace(/\s+/g, ' ').trim().slice(0, lim);
+}
+
+function ti__autorTipo_(v){
+  const raw = String(v || '').trim().toUpperCase();
+  if (raw === 'TI') return 'TI';
+  if (raw === 'SISTEMA') return 'SISTEMA';
+  return 'SOLICITANTE';
+}
+
+function ti__validarTokenPublico_(input){
+  const sp = PropertiesService.getScriptProperties();
+  const esperado = String(sp.getProperty(TI_PUBLIC_TOKEN_PROP) || '').trim();
+  if (!esperado) return { ok: true, tokenRequired: false };
+
+  const recebido = String(input.token || input.publicToken || input.apiToken || '').trim();
+  if (recebido && recebido === esperado) return { ok: true, tokenRequired: true };
+  return { ok: false, msg: 'Token inválido para API pública TI.' };
+}
+
+function ti_public_meta(input){
+  input = input || {};
+  const check = ti__validarTokenPublico_(input);
+  if (!check.ok) return check;
+
+  let setores = [];
+  try { setores = listarSetores() || []; }
+  catch(_) { setores = []; }
+
+  return {
+    ok: true,
+    tokenRequired: !!check.tokenRequired,
+    prioridades: ['NORMAL', 'ALTA', 'URGENTE'],
+    categorias: ['Hardware', 'Software', 'Rede', 'Impressora', 'Sistema', 'Acesso', 'Outro'],
+    setores,
+    statusInicial: 'ABERTO',
+    chat: {
+      enabled: true,
+      maxMensagem: 2000
+    }
+  };
+}
+
+function ti_public_create(payload){
+  payload = payload || {};
+  const check = ti__validarTokenPublico_(payload);
+  if (!check.ok) return check;
+
+  const res = ti_abrirChamado(payload);
+  if (!res || !res.ok) return res || { ok:false, msg:'Falha ao abrir chamado.' };
+
+  return {
+    ok: true,
+    protocolo: res.protocolo,
+    anexo: !!res.anexo,
+    anexos: res.anexos || 0,
+    anexoLinks: res.anexoLinks || [],
+    anexoNomes: res.anexoNomes || [],
+    chatHabilitado: true
+  };
+}
+
+function ti_chat_enviar(input){
+  input = input || {};
+
+  const protocolo = String(input.id || input.protocolo || input.chamadoId || '').trim();
+  if (!protocolo) return { ok:false, msg:'Protocolo obrigatório.' };
+
+  const mensagem = ti__cleanText_(input.mensagem || input.msg || input.texto || '', 2000);
+  if (!mensagem) return { ok:false, msg:'Mensagem obrigatória.' };
+
+  const { sh, headers, chat } = ti__ensureSheets_();
+  const chamadoRow = ti__findRowByProtocolo_(sh, headers, protocolo);
+  if (chamadoRow < 0) return { ok:false, msg:'Chamado não encontrado.' };
+
+  const chatHeaders = chat.getRange(1,1,1,chat.getLastColumn()).getValues()[0] || [];
+  const iCar = ti__idx_(chatHeaders,'Carimbo');
+  const iProt= ti__idx_(chatHeaders,'Protocolo');
+  const iTipo= ti__idx_(chatHeaders,'Autor Tipo');
+  const iNome= ti__idx_(chatHeaders,'Autor Nome');
+  const iMsg = ti__idx_(chatHeaders,'Mensagem');
+  const iCan = ti__idx_(chatHeaders,'Canal');
+
+  const autorTipo = ti__autorTipo_(input.autorTipo || input.tipoAutor);
+
+  // Validar: somente sessão TI pode enviar como TI ou SISTEMA
+  if (autorTipo === 'TI' || autorTipo === 'SISTEMA') {
+    const ctx = ti__ctx_();
+    const setor = String(ctx.setor || '').toUpperCase();
+    if (setor && setor !== 'TI' && setor !== 'TECNOLOGIA' && setor !== 'INFORMATICA' && setor !== 'INFORMÁTICA' && setor !== 'T.I.') {
+      return { ok: false, msg: 'Sem permissão para enviar como ' + autorTipo + '.' };
+    }
+  }
+
+  const autorNome = ti__cleanText_(input.autorNome || input.nome || input.autor || '', 120) || (autorTipo === 'TI' ? 'Técnico' : 'Solicitante');
+  const canal = ti__cleanText_(input.canal || 'WEB', 40).toUpperCase();
+  const now = new Date();
+
+  const row = new Array(chat.getLastColumn()).fill('');
+  row[iCar] = now;
+  row[iProt] = protocolo;
+  row[iTipo] = autorTipo;
+  row[iNome] = autorNome;
+  row[iMsg] = mensagem;
+  row[iCan] = canal;
+
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  let duplicateItem = null;
+  let appended = false;
+  try{
+    duplicateItem = ti__chatFindRecentDuplicate_(chat, {
+      car: iCar,
+      prot: iProt,
+      tipo: iTipo,
+      nome: iNome,
+      msg: iMsg,
+      can: iCan
+    }, {
+      protocolo,
+      autorTipo,
+      autorNome,
+      mensagem,
+      canal,
+      now,
+      windowMs: 4500
+    });
+
+    if (!duplicateItem) {
+      chat.appendRow(row);
+      appended = true;
+    }
+  }
+  finally{ lock.releaseLock(); }
+
+  if (duplicateItem) {
+    return { ok: true, dedup: true, item: duplicateItem };
+  }
+
+  if (appended) ti__pushHist_(protocolo, 'CHAT_' + autorTipo, mensagem.slice(0,200));
+
+  return {
+    ok: true,
+    item: {
+      quando: Utilities.formatDate(now, TZ, "yyyy-MM-dd'T'HH:mm:ss"),
+      protocolo,
+      autorTipo,
+      autorNome,
+      mensagem,
+      canal
+    }
+  };
+}
+
+function ti_chat_listar(input){
+  input = input || {};
+  const protocolo = String(input.id || input.protocolo || input.chamadoId || '').trim();
+  if (!protocolo) return { ok:true, items: [] };
+
+  const { sh, headers, chat } = ti__ensureSheets_();
+  const iReadTI  = ti__idx_(headers, 'TI Última Leitura');
+  const iReadSol = ti__idx_(headers, 'Solicitante Última Leitura');
+
+  // Localizar linha do chamado na planilha Chamados
+  const chamadoRow = ti__findRowByProtocolo_(sh, headers, protocolo);
+
+  // Marcar leitura do lado que está consultando (grava na planilha Chamados)
+  const leitor = String(input.leitor || '').trim().toUpperCase();
+  if (chamadoRow > 0 && (leitor === 'TI' || leitor === 'SOLICITANTE')) {
+    try {
+      const col = leitor === 'TI' ? iReadTI : iReadSol;
+      if (col >= 0) sh.getRange(chamadoRow, col + 1).setValue(new Date());
+    } catch(_){}
+  }
+
+  // Ler timestamps de leitura de cada lado
+  let readByTI = null, readBySolic = null;
+  if (chamadoRow > 0) {
+    try {
+      if (iReadTI >= 0) {
+        const v = sh.getRange(chamadoRow, iReadTI + 1).getValue();
+        if (v instanceof Date) readByTI = v;
+        else if (v) readByTI = new Date(v);
+      }
+      if (iReadSol >= 0) {
+        const v = sh.getRange(chamadoRow, iReadSol + 1).getValue();
+        if (v instanceof Date) readBySolic = v;
+        else if (v) readBySolic = new Date(v);
+      }
+    } catch(_){}
+  }
+
+  const lastRow = chat.getLastRow();
+  if (lastRow < 2) return { ok:true, items: [] };
+
+  const chatHeaders = chat.getRange(1,1,1,chat.getLastColumn()).getValues()[0] || [];
+  const iCar = ti__idx_(chatHeaders,'Carimbo');
+  const iProt= ti__idx_(chatHeaders,'Protocolo');
+  const iTipo= ti__idx_(chatHeaders,'Autor Tipo');
+  const iNome= ti__idx_(chatHeaders,'Autor Nome');
+  const iMsg = ti__idx_(chatHeaders,'Mensagem');
+  const iCan = ti__idx_(chatHeaders,'Canal');
+
+  const sinceRaw = String(input.since || '').trim();
+  const sinceDate = sinceRaw ? (parseAnyDate(sinceRaw) || null) : null;
+  const limit = Math.min(Math.max(parseInt(input.limit || 200, 10) || 200, 1), 1000);
+
+  const totalRows = lastRow - 1;
+  const scanRows = sinceDate
+    ? Math.min(totalRows, Math.max(limit * 4, 240))
+    : Math.min(totalRows, Math.max(limit * 6, 900));
+  const startRow = lastRow - scanRows + 1;
+  const vals = chat.getRange(startRow,1,scanRows,chat.getLastColumn()).getValues();
+  const out = [];
+  for (let i=0;i<vals.length;i++){
+    const row = vals[i];
+    if (String(row[iProt] || '').trim() !== protocolo) continue;
+
+    const quandoDate = row[iCar] instanceof Date ? row[iCar] : parseAnyDate(row[iCar]);
+    if (sinceDate && quandoDate && quandoDate <= sinceDate) continue;
+
+    const tipo = String(row[iTipo] || '');
+    const tipoUp = tipo.toUpperCase();
+
+    // Determinar se a mensagem foi lida pelo outro lado
+    let lido = false;
+    if (tipoUp === 'SOLICITANTE' && readByTI && quandoDate && quandoDate <= readByTI) lido = true;
+    if (tipoUp === 'TI' && readBySolic && quandoDate && quandoDate <= readBySolic) lido = true;
+    if (tipoUp === 'SISTEMA') lido = true;
+
+    out.push({
+      quando: quandoDate ? Utilities.formatDate(quandoDate, TZ, "yyyy-MM-dd'T'HH:mm:ss") : String(row[iCar] || ''),
+      protocolo,
+      autorTipo: tipo,
+      autorNome: String(row[iNome] || ''),
+      mensagem: String(row[iMsg] || ''),
+      canal: String(row[iCan] || ''),
+      lido
+    });
+  }
+
+  out.sort((a,b)=>{
+    const ta = parseAnyDate(a.quando) || new Date(0);
+    const tb = parseAnyDate(b.quando) || new Date(0);
+    return ta.getTime() - tb.getTime();
+  });
+
+  return { ok:true, items: out.slice(-limit) };
+}
+
+function ti_public_chat_send(input){
+  input = input || {};
+  const check = ti__validarTokenPublico_(input);
+  if (!check.ok) return check;
+  // Forçar tipo SOLICITANTE para chamadas públicas (segurança)
+  input.autorTipo = 'SOLICITANTE';
+  return ti_chat_enviar(input);
+}
+
+function ti_public_chat_list(input){
+  input = input || {};
+  const check = ti__validarTokenPublico_(input);
+  if (!check.ok) return check;
+  return ti_chat_listar(input);
+}
+
 // ✅ Chamados abertos no login
 function ti_abrirChamado(payload){
   payload = payload || {};
   ensureTiSheets_();
 
   const nome = String(payload.nome || payload.solicitante || '').trim();
-  const email = String(payload.email || '').trim();
+  const emailRaw = String(payload.email || '').trim();
+  const email = emailRaw || 'naoinformado@semfas.local';
   const telefone = String(payload.telefone || payload.tel || '').trim();
   const setor = String(payload.setor || payload.unidade || '').trim();
   const categoria = String(payload.categoria || '').trim();
   const prioridade = ti__normalizePrioridade_(payload.prioridade || 'NORMAL');
   const descricao = String(payload.descricao || '').trim();
 
-  if (!nome || !email || !telefone || !setor || !categoria || !descricao){
+  if (!nome || !telefone || !setor || !categoria || !descricao){
     return { ok:false, msg:'Preencha todos os campos obrigatórios.' };
   }
 
@@ -2600,29 +3292,50 @@ function ti_abrirChamado(payload){
   const iObs = ti__idx_(headers,'Obs');
   const iAnx = ti__idx_(headers,'Anexo (Link)');
   const iAnxN= ti__idx_(headers,'Anexo (Nome)');
+  const iAnxFld = ti__idxAny_(headers,'Anexo (Pasta ID)','Anexo Pasta ID','Pasta Anexo ID','Pasta ID');
 
   const now = new Date();
   const protocolo = ti__nextProtocolo_();
 
-  let anexoLink = '';
-  let anexoNome = '';
-
+  const anexosPack = [];
   const filePack = payload.file || payload.anexo || null;
-  if (filePack && filePack.dataUrl){
-    try{
-      const blob = dataUrlToBlob_(filePack.dataUrl, filePack.mimeType || MimeType.BINARY);
-      if (blob){
-        const baseName = String(filePack.name || 'anexo');
+  if (filePack && filePack.dataUrl) anexosPack.push(filePack);
+
+  if (Array.isArray(payload.files)) {
+    payload.files.forEach(f => {
+      if (f && f.dataUrl) anexosPack.push(f);
+    });
+  }
+  if (Array.isArray(payload.anexos)) {
+    payload.anexos.forEach(f => {
+      if (f && f.dataUrl) anexosPack.push(f);
+    });
+  }
+
+  const anexoLinks = [];
+  const anexoNomes = [];
+  let anexoFolderId = '';
+  if (anexosPack.length){
+    const folder = ti__getOrCreateProtocoloFolder_(protocolo);
+    anexoFolderId = String(folder.getId() || '').trim();
+    const limite = Math.min(anexosPack.length, 10);
+    for (let i=0; i<limite; i++){
+      const anexo = anexosPack[i];
+      try{
+        const blob = dataUrlToBlob_(anexo.dataUrl, anexo.mimeType || MimeType.BINARY);
+        if (!blob) continue;
+
+        const baseName = String(anexo.name || ('anexo_' + (i+1)));
         const safeName = baseName.replace(/[^a-zA-Z0-9._\- ]/g,'_');
-        const folder = DriveApp.getFolderById(FOLDER_PDFS_ID);
-        const file = folder.createFile(blob).setName(`${protocolo} - ${safeName}`);
+        const file = folder.createFile(blob).setName(safeName);
         setPublicSharing_(file);
+
         const links = buildDriveLinks_(file.getId());
-        anexoLink = links.download || file.getUrl();
-        anexoNome = file.getName();
+        anexoLinks.push(links.view || file.getUrl());
+        anexoNomes.push(file.getName());
+      }catch(e){
+        Logger.log('[TI] anexo erro: ' + (e && e.message ? e.message : e));
       }
-    }catch(e){
-      Logger.log('[TI] anexo erro: ' + (e && e.message ? e.message : e));
     }
   }
 
@@ -2639,17 +3352,19 @@ function ti_abrirChamado(payload){
   row[iSt]   = 'ABERTO';
   row[iResp] = '';
   row[iUp]   = now;
-  row[iObs]  = 'Aberto pelo portal';
-  if (iAnx >= 0) row[iAnx] = anexoLink;
-  if (iAnxN >= 0) row[iAnxN] = anexoNome;
+  row[iObs]  = anexoLinks.length ? `Aberto pelo portal • ${anexoLinks.length} anexo(s)` : 'Aberto pelo portal';
+  if (iAnx >= 0) row[iAnx] = anexoLinks.join('\n');
+  if (iAnxN >= 0) row[iAnxN] = anexoNomes.join('\n');
+  if (iAnxFld >= 0) row[iAnxFld] = anexoFolderId;
 
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try{ sh.appendRow(row); }
   finally{ lock.releaseLock(); }
 
   ti__pushHist_(protocolo, 'CRIAR', descricao.slice(0,200));
+  ti__bumpCacheVer_();
 
-  return { ok:true, protocolo, anexo: !!anexoLink };
+  return { ok:true, protocolo, anexo: anexoLinks.length > 0, anexos: anexoLinks.length, anexoLinks, anexoNomes };
 }
 
 /** Boot pro front */
@@ -2677,6 +3392,61 @@ function ti_boot(){
     cache.put(cacheKey, JSON.stringify(result), 60);
   }catch(e){}
   
+  return result;
+}
+
+/** PING leve — retorna apenas contagens para polling eficiente */
+function ti_ping(){
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'ti_ping_v1';
+  try {
+    const cached = cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch(_) {}
+
+  const { sh, headers } = ti__ensureSheets_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) {
+    return { ok: true, total: 0, abertos: 0, andamento: 0, pendentes: 0, urgentes: 0, lastId: '', ts: Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss") };
+  }
+
+  const lc = sh.getLastColumn();
+  const iSt   = ti__idx_(headers, 'Status');
+  const iPr   = ti__idx_(headers, 'Prioridade');
+  const iProt = ti__idx_(headers, 'Protocolo');
+  const iUp   = ti__idx_(headers, 'Atualizado em');
+
+  const scanRows = Math.min(lastRow - 1, 500);
+  const startRow = lastRow - scanRows + 1;
+  const values = sh.getRange(startRow, 1, scanRows, lc).getValues();
+
+  let total = 0, abertos = 0, andamento = 0, pendentes = 0, urgentes = 0;
+  let lastId = '';
+  let lastTs = null;
+
+  for (let r = 0; r < values.length; r++) {
+    const row = values[r];
+    const st = String(row[iSt] || '').trim().toUpperCase();
+    const pr = String(row[iPr] || '').trim().toUpperCase();
+    total++;
+    if (st === 'ABERTO') abertos++;
+    else if (st === 'EM ANDAMENTO') andamento++;
+    else if (st === 'PENDENTE' || st === 'AGUARDANDO') pendentes++;
+    if (pr === 'URGENTE' || pr === 'ALTA') urgentes++;
+    const upDate = row[iUp] instanceof Date ? row[iUp] : parseAnyDate(row[iUp]);
+    if (!lastTs || (upDate && upDate > lastTs)) {
+      lastTs = upDate;
+      lastId = String(row[iProt] || '').trim();
+    }
+  }
+
+  const result = {
+    ok: true, total, abertos, andamento, pendentes, urgentes,
+    lastId,
+    ts: Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss")
+  };
+
+  try { cache.put(cacheKey, JSON.stringify(result), 8); } catch(_) {}
   return result;
 }
 
@@ -2733,8 +3503,9 @@ function ti_listarTecnicos(){
 function ti_listarChamados(params){
   params = params || {};
   
-  // Cache de 30 segundos para melhorar performance
-  const cacheKey = 'ti_list_' + JSON.stringify(params).substring(0,200);
+  // Cache de 30 segundos para melhorar performance (versionado)
+  const ver = ti__cacheVer_();
+  const cacheKey = 'ti_lv' + ver + '_' + JSON.stringify(params).substring(0,200);
   const cache = CacheService.getScriptCache();
   try{
     const cached = cache.get(cacheKey);
@@ -2747,7 +3518,6 @@ function ti_listarChamados(params){
   if (lastRow < 2) return { ok:true, items: [] };
 
   const lc = sh.getLastColumn();
-  const values = sh.getRange(2,1,lastRow-1,lc).getValues();
 
   const iCar = ti__idx_(headers,'Carimbo');
   const iProt= ti__idx_(headers,'Protocolo');
@@ -2769,6 +3539,17 @@ function ti_listarChamados(params){
   const fUni    = String(params.unidade||'').trim().toLowerCase();
   const fCat    = String(params.categoria||'').trim().toLowerCase();
   const limit   = Math.min(Math.max(parseInt(params.limit||200,10) || 200, 1), 2000);
+  const hasFilters = !!(q || fStatus || fPrio || fUni || fCat);
+
+  const totalRows = lastRow - 1;
+  let startRow = 2;
+  let rowCount = totalRows;
+  if (!hasFilters) {
+    rowCount = Math.min(totalRows, Math.max(limit * 4, 800));
+    startRow = lastRow - rowCount + 1;
+  }
+
+  const values = sh.getRange(startRow,1,rowCount,lc).getValues();
 
   const out = [];
 
@@ -2798,7 +3579,7 @@ function ti_listarChamados(params){
     const titulo = (descricao.split('\n')[0] || descricao || protocolo).slice(0,80);
 
     out.push({
-      rowRef: r+2,
+      rowRef: startRow + r,
       id: protocolo,
       criadoEm: row[iCar] instanceof Date ? Utilities.formatDate(row[iCar], TZ, "yyyy-MM-dd'T'HH:mm:ss") : (row[iCar]||''),
       atualizadoEm: row[iUp] instanceof Date ? Utilities.formatDate(row[iUp], TZ, "yyyy-MM-dd'T'HH:mm:ss") : (row[iUp]||''),
@@ -2807,7 +3588,7 @@ function ti_listarChamados(params){
       categoria,
       unidade,
       solicitante: solicit,
-      contato: [String(row[iEm]||'').trim(), String(row[iTel]||'').trim()].filter(Boolean).join(' • '),
+      contato: [String(row[iEm]||'').trim(), String(row[iTel]||'').trim()].filter(v => v && v !== 'naoinformado@semfas.local').join(' • '),
       titulo,
       descricao,
       responsavel: resp,
@@ -2815,8 +3596,6 @@ function ti_listarChamados(params){
       concluidoEm: '',
       ultimaAcao: obs
     });
-
-    if (out.length >= limit) break;
   }
 
   // ordena por atualizado desc
@@ -2826,7 +3605,7 @@ function ti_listarChamados(params){
     return tb.getTime() - ta.getTime();
   });
 
-  const result = { ok:true, items: out };
+  const result = { ok:true, items: out.slice(0, limit) };
   
   // Salva no cache por 30 segundos
   try{
@@ -2842,15 +3621,146 @@ function ti_obterChamado(input){
   const protocolo = String(id||'').trim();
   if (!protocolo) return { ok:false, msg:'ID vazio.' };
 
-  const pack = ti_listarChamados({ q: protocolo, limit: 1000 });
-  const item = (pack.items || []).find(x => x.id === protocolo);
-  if (!item) return { ok:false, msg:'Não encontrado.' };
-  return { ok:true, rowRef: item.rowRef, item };
+  const { sh, headers } = ti__ensureSheets_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok:false, msg:'Não encontrado.' };
+
+  const iProt= ti__idx_(headers,'Protocolo');
+  if (iProt < 0) return { ok:false, msg:'Coluna Protocolo não encontrada.' };
+
+  const rowRef = ti__findRowByProtocolo_(sh, headers, protocolo);
+  if (rowRef < 0) return { ok:false, msg:'Não encontrado.' };
+  const row = sh.getRange(rowRef, 1, 1, sh.getLastColumn()).getValues()[0];
+
+  const iCar = ti__idx_(headers,'Carimbo');
+  const iNom = ti__idx_(headers,'Nome');
+  const iEm  = ti__idx_(headers,'Email');
+  const iTel = ti__idx_(headers,'Telefone');
+  const iUni = ti__idx_(headers,'Setor/Local');
+  const iCat = ti__idx_(headers,'Categoria');
+  const iPr  = ti__idx_(headers,'Prioridade');
+  const iDes = ti__idx_(headers,'Descrição');
+  const iSt  = ti__idx_(headers,'Status');
+  const iResp= ti__idx_(headers,'Responsável');
+  const iUp  = ti__idx_(headers,'Atualizado em');
+  const iObs = ti__idx_(headers,'Obs');
+  const iAnx = ti__idxAny_(headers, 'Anexo (Link)', 'Anexo Link', 'Anexos');
+  const iAnxN= ti__idxAny_(headers, 'Anexo (Nome)', 'Anexo Nome', 'Nome do Anexo');
+  const iAnxFld = ti__idxAny_(headers, 'Anexo (Pasta ID)', 'Anexo Pasta ID', 'Pasta Anexo ID', 'Pasta ID');
+  const iDocs= ti__idxAny_(headers, 'Documentos', 'Docs', 'Arquivos Anexos', 'Documentos/Anexos');
+
+  const descricao = String(row[iDes]||'').trim();
+  const status = String(row[iSt]||'').trim().toUpperCase();
+  const prio = String(row[iPr]||'').trim().toUpperCase();
+  const anexoFolderId = iAnxFld >= 0 ? String(row[iAnxFld] || '').trim() : '';
+  let anexoLinks = [];
+  let anexoNomes = [];
+
+  if (iAnx >= 0) {
+    const parsedLinks = ti__parseAnexosFromCell_(row[iAnx]);
+    anexoLinks = parsedLinks.links;
+    anexoNomes = parsedLinks.nomes;
+  }
+
+  if (iAnxN >= 0) {
+    const nomesLinha = String(row[iAnxN] || '').split(/\r?\n/).map(x => String(x || '').trim()).filter(Boolean);
+    if (nomesLinha.length) {
+      anexoNomes = anexoLinks.map((_, i) => nomesLinha[i] || anexoNomes[i] || '');
+    }
+  }
+
+  if (!anexoLinks.length && iDocs >= 0) {
+    const parsedDocs = ti__parseAnexosFromCell_(row[iDocs]);
+    anexoLinks = parsedDocs.links;
+    anexoNomes = parsedDocs.nomes;
+  }
+
+  if (iAnx >= 0) {
+    try {
+      const urlsCell = ti__extractUrlsFromCell_(sh.getRange(rowRef, iAnx + 1));
+      if (urlsCell.length) {
+        const has = new Set(anexoLinks);
+        urlsCell.forEach((u) => {
+          if (has.has(u)) return;
+          anexoLinks.push(u);
+          anexoNomes.push('');
+          has.add(u);
+        });
+      }
+    } catch(_){ }
+  }
+
+  if (iDocs >= 0) {
+    try {
+      const urlsCell = ti__extractUrlsFromCell_(sh.getRange(rowRef, iDocs + 1));
+      if (urlsCell.length) {
+        const has = new Set(anexoLinks);
+        urlsCell.forEach((u) => {
+          if (has.has(u)) return;
+          anexoLinks.push(u);
+          anexoNomes.push('');
+          has.add(u);
+        });
+      }
+    } catch(_){ }
+  }
+
+  if (anexoLinks.length) {
+    anexoNomes = anexoLinks.map((_, i) => {
+      const n = String(anexoNomes[i] || '').trim();
+      return n || ('Anexo ' + (i + 1));
+    });
+  }
+
+  if (!anexoLinks.length) {
+    const allUrls = ti__collectUrlsFromRow_(sh, rowRef);
+    if (allUrls.length) {
+      anexoLinks = allUrls;
+      anexoNomes = allUrls.map((_, i) => 'Anexo ' + (i + 1));
+    }
+  }
+
+  // IMPORTANTE: não faz varredura no Drive aqui para não travar abertura do modal.
+  // A busca de anexos no Drive é feita sob demanda via API dedicada (ti_drive_anexos).
+
+  const item = {
+    rowRef,
+    id: protocolo,
+    criadoEm: row[iCar] instanceof Date ? Utilities.formatDate(row[iCar], TZ, "yyyy-MM-dd'T'HH:mm:ss") : (row[iCar]||''),
+    atualizadoEm: row[iUp] instanceof Date ? Utilities.formatDate(row[iUp], TZ, "yyyy-MM-dd'T'HH:mm:ss") : (row[iUp]||''),
+    status: status || 'ABERTO',
+    prioridade: prio || 'NORMAL',
+    categoria: String(row[iCat]||'').trim(),
+    unidade: String(row[iUni]||'').trim(),
+    solicitante: String(row[iNom]||'').trim(),
+    contato: [String(row[iEm]||'').trim(), String(row[iTel]||'').trim()].filter(v => v && v !== 'naoinformado@semfas.local').join(' • '),
+    titulo: (descricao.split('\n')[0] || descricao || protocolo).slice(0,80),
+    descricao,
+    responsavel: String(row[iResp]||'').trim(),
+    previsao: '',
+    concluidoEm: '',
+    ultimaAcao: String(row[iObs]||'').trim(),
+    anexoFolderId,
+    anexoLinks,
+    anexoNomes
+  };
+
+  return { ok:true, rowRef, item };
 }
 
 /** CREATE */
 function ti_criarChamado(payload){
   payload = payload || {};
+
+  // Validar campos mínimos
+  const _solic = String(payload.solicitante||'').trim();
+  const _titulo = String(payload.titulo||'').trim();
+  const _desc = String(payload.descricao||'').trim();
+  const _uni = String(payload.unidade||'').trim();
+  if (!_solic) return { ok:false, msg:'Solicitante é obrigatório.' };
+  if (!_titulo && !_desc) return { ok:false, msg:'Título ou Descrição é obrigatório.' };
+  if (!_uni) return { ok:false, msg:'Unidade/Setor é obrigatório.' };
+
   const { sh, headers } = ti__ensureSheets_();
 
   const iCar = ti__idx_(headers,'Carimbo');
@@ -2896,6 +3806,7 @@ function ti_criarChamado(payload){
   finally{ lock.releaseLock(); }
 
   ti__pushHist_(protocolo, 'CRIAR', titulo || desc || '');
+  ti__bumpCacheVer_();
   return { ok:true, id: protocolo };
 }
 
@@ -2922,45 +3833,39 @@ function ti_atualizarChamado(payload){
   const iUp  = ti__idx_(headers,'Atualizado em');
   const iObs = ti__idx_(headers,'Obs');
 
-  const lc = sh.getLastColumn();
-  const vals = sh.getRange(2,1,lastRow-1,lc).getValues();
+  const rowRef = ti__findRowByProtocolo_(sh, headers, protocolo);
+  if (rowRef < 0) return { ok:false, msg:'Não encontrado.' };
 
-  for (let r=0;r<vals.length;r++){
-    if (String(vals[r][iProt]||'').trim() !== protocolo) continue;
+  const contato = ti__splitContato_(payload.contato);
 
-    const rowRef = r+2;
-    const contato = ti__splitContato_(payload.contato);
+  const titulo = String(payload.titulo||'').trim();
+  const desc   = String(payload.descricao||'').trim();
+  const descricaoFinal = titulo && desc ? (titulo + '\n' + desc) : (desc || titulo);
 
-    const titulo = String(payload.titulo||'').trim();
-    const desc   = String(payload.descricao||'').trim();
-    const descricaoFinal = titulo && desc ? (titulo + '\n' + desc) : (desc || titulo);
-
-    const lock = LockService.getScriptLock(); lock.waitLock(20000);
-    try{
-      if (payload.status != null)      sh.getRange(rowRef, iSt+1).setValue(String(payload.status).trim().toUpperCase());
-      if (payload.prioridade != null)  sh.getRange(rowRef, iPr+1).setValue(String(payload.prioridade).trim().toUpperCase());
-      if (payload.categoria != null)   sh.getRange(rowRef, iCat+1).setValue(String(payload.categoria||'').trim());
-      if (payload.unidade != null)     sh.getRange(rowRef, iUni+1).setValue(String(payload.unidade||'').trim());
-      if (payload.solicitante != null) sh.getRange(rowRef, iNom+1).setValue(String(payload.solicitante||'').trim());
-      if (payload.contato != null){
-        if (contato.email) sh.getRange(rowRef, iEm+1).setValue(contato.email);
-        if (contato.tel)   sh.getRange(rowRef, iTel+1).setValue(contato.tel);
-      }
-      if (payload.titulo != null || payload.descricao != null){
-        sh.getRange(rowRef, iDes+1).setValue(descricaoFinal);
-      }
-      if (payload.responsavel != null) sh.getRange(rowRef, iResp+1).setValue(String(payload.responsavel||'').trim());
-      sh.getRange(rowRef, iUp+1).setValue(new Date());
-      if (payload.ultimaAcao != null) sh.getRange(rowRef, iObs+1).setValue(String(payload.ultimaAcao||'').trim());
-    } finally {
-      lock.releaseLock();
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try{
+    if (payload.status != null)      sh.getRange(rowRef, iSt+1).setValue(String(payload.status).trim().toUpperCase());
+    if (payload.prioridade != null)  sh.getRange(rowRef, iPr+1).setValue(String(payload.prioridade).trim().toUpperCase());
+    if (payload.categoria != null)   sh.getRange(rowRef, iCat+1).setValue(String(payload.categoria||'').trim());
+    if (payload.unidade != null)     sh.getRange(rowRef, iUni+1).setValue(String(payload.unidade||'').trim());
+    if (payload.solicitante != null) sh.getRange(rowRef, iNom+1).setValue(String(payload.solicitante||'').trim());
+    if (payload.contato != null){
+      if (contato.email) sh.getRange(rowRef, iEm+1).setValue(contato.email);
+      if (contato.tel)   sh.getRange(rowRef, iTel+1).setValue(contato.tel);
     }
-
-    ti__pushHist_(protocolo, 'ATUALIZAR', String(payload.ultimaAcao||payload.titulo||payload.descricao||'').slice(0,200));
-    return { ok:true };
+    if (payload.titulo != null || payload.descricao != null){
+      sh.getRange(rowRef, iDes+1).setValue(descricaoFinal);
+    }
+    if (payload.responsavel != null) sh.getRange(rowRef, iResp+1).setValue(String(payload.responsavel||'').trim());
+    sh.getRange(rowRef, iUp+1).setValue(new Date());
+    if (payload.ultimaAcao != null) sh.getRange(rowRef, iObs+1).setValue(String(payload.ultimaAcao||'').trim());
+  } finally {
+    lock.releaseLock();
   }
 
-  return { ok:false, msg:'Não encontrado.' };
+  ti__pushHist_(protocolo, 'ATUALIZAR', String(payload.ultimaAcao||payload.titulo||payload.descricao||'').slice(0,200));
+  ti__bumpCacheVer_();
+  return { ok:true };
 }
 
 /** HIST */
@@ -2992,6 +3897,14 @@ function ti_historicoChamado(input){
 /** REPORT */
 function ti_relatorios(params){
   params = params || {};
+  const repVer = ti__cacheVer_();
+  const repKey = 'ti_rep_' + repVer + '_' + JSON.stringify({ i: params.inicio || '', f: params.fim || '' }).substring(0, 120);
+  const repCache = CacheService.getScriptCache();
+  try {
+    const cached = repCache.get(repKey);
+    if (cached) return JSON.parse(cached);
+  } catch(_){ }
+
   const inicio = params.inicio ? parseISODateSafe(params.inicio) : null;
   const fim    = params.fim ? parseISODateSafe(params.fim) : null;
 
@@ -3141,7 +4054,9 @@ function ti_relatorios(params){
     rankingLocais
   };
 
-  return { ok:true, total, porStatus, porPrioridade, porCategoria, porUnidade, porResponsavel, serieDias, estatisticas, detalhes };
+  const result = { ok:true, total, porStatus, porPrioridade, porCategoria, porUnidade, porResponsavel, serieDias, estatisticas, detalhes };
+  try { repCache.put(repKey, JSON.stringify(result), 45); } catch(_){ }
+  return result;
 }
 
 /** alias p/ apiDispatch */
@@ -3508,9 +4423,11 @@ function maq_estatisticasPorLocal(){
 
     const vals = shMaq.getRange(2, 1, lastRow-1, shMaq.getLastColumn()).getValues();
     
-    // Índices esperados
-    const iLocal = 4; // Coluna E (Local)
-    const iTipo = 3;  // Coluna D (Tipo)
+    // Usar headers dinâmicos em vez de índices hardcoded
+    const maqHeaders = shMaq.getRange(1,1,1,shMaq.getLastColumn()).getValues()[0] || [];
+    const iLocal = maq__idx_(maqHeaders, 'Local Atual');
+    const iTipo = maq__idx_(maqHeaders, 'Tipo Máquina');
+    if (iLocal < 0 || iTipo < 0) return { ok:true, locais: [] };
 
     const stats = {}; // { local: { tipo: count } }
 

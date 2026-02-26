@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><?= appTitle ?></title>
+  <style>
+    :root{--bg:#0f172a;--card:#111827;--line:#334155;--txt:#e2e8f0;--muted:#94a3b8;--acc:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#020617,#0f172a);color:var(--txt)}
+    .wrap{max-width:980px;margin:0 auto;padding:20px}
+    .card{background:rgba(17,24,39,.9);border:1px solid var(--line);border-radius:16px;padding:16px}
+    .title{font-size:22px;font-weight:800;margin:0 0 12px}
+    .muted{color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field.full{grid-column:1/-1}
+    label{font-size:13px;color:var(--muted);font-weight:700}
+    input,select,textarea,button{font:inherit}
+    input,select,textarea{background:#0b1220;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px}
+    textarea{min-height:120px;resize:vertical}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}
+    .btn-primary{background:var(--acc);color:#04111f}
+    .btn-ghost{background:#1e293b;color:var(--txt)}
+    .btn[aria-busy="true"]{opacity:.8;pointer-events:none;position:relative;padding-right:34px}
+    .btn[aria-busy="true"]::after{
+      content:"";position:absolute;right:12px;top:50%;margin-top:-7px;width:14px;height:14px;
+      border:2px solid rgba(255,255,255,.75);border-top-color:transparent;border-radius:50%;
+      animation:spin .8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .status{font-size:13px;font-weight:700}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+    .chat{margin-top:14px;display:none}
+    .chat.open{display:block}
+    .msgs{height:340px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#020617;padding:12px;display:flex;flex-direction:column;gap:6px}
+    .chat-bubble{max-width:82%;padding:10px 14px;border-radius:16px;font-size:.88rem;line-height:1.45;word-break:break-word}
+    .chat-bubble-mine{align-self:flex-end;background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;border-bottom-right-radius:4px}
+    .chat-bubble-other{align-self:flex-start;background:rgba(100,116,139,.22);color:var(--txt);border-bottom-left-radius:4px}
+    .chat-bubble .cb-meta{font-size:.7rem;opacity:.65;margin-top:3px}
+    .chat-bubble-mine .cb-meta{text-align:right}
+    .chat-bubble-other .cb-meta{text-align:left}
+    .chat-bubble .cb-tick{opacity:.55}
+    .chat-bubble .cb-tick.read{opacity:1;color:#38bdf8}
+    .chat-system{align-self:center;text-align:center;padding:4px 14px;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(100,116,139,.15);color:var(--muted);display:flex;align-items:center;gap:6px}
+    .chat-system .cb-meta{font-size:.65rem;opacity:.6}
+    .chat-empty{text-align:center;padding:30px;font-weight:700;opacity:.45;font-size:.9rem}
+    .proto{font-weight:900;color:var(--acc)}
+    /* Arquivo no chat */
+    .chat-file-list{display:flex;flex-direction:column;gap:6px;margin:8px 0 4px}
+    .chat-file-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);text-decoration:none;color:var(--acc);font-size:.82rem;font-weight:700;transition:background .2s}
+    .chat-file-item:hover{background:rgba(56,189,248,.16)}
+    .chat-file-icon{font-size:1.1rem;flex-shrink:0}
+    .chat-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+    .chat-file-badge{font-size:.7rem;padding:2px 7px;border-radius:999px;background:rgba(56,189,248,.18);color:var(--acc);flex-shrink:0}
+    /* Indicador de envio pendente */
+    .chat-bubble-pending{opacity:.65}
+    .chat-bubble-pending .cb-tick{color:var(--muted)}
+    /* Input area melhorada */
+    .chat-input-row{display:flex;gap:8px;margin-top:10px;align-items:flex-end}
+    .chat-input-row input{flex:1;border-radius:12px;padding:10px 14px;font-size:.9rem}
+    .chat-input-row .btn{flex-shrink:0;border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:6px}
+    @media (max-width: 760px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1 class="title">🛠️ <?= appTitle ?></h1>
+      <p class="muted" style="margin:0 0 14px">Abra um chamado e acompanhe em tempo real pelo chat.</p>
+
+      <form id="chamadoForm" onsubmit="return false">
+      <div class="grid">
+        <div class="field">
+          <label for="nome">Nome *</label>
+          <input id="nome" name="nome" maxlength="140" />
+        </div>
+        <div class="field">
+          <label for="telefone">Telefone *</label>
+          <input id="telefone" name="telefone" maxlength="60" />
+        </div>
+        <div class="field">
+          <label for="setor">Setor/Local *</label>
+          <select id="setor" name="setor"></select>
+        </div>
+        <div class="field" id="setorOutroWrap" style="display:none;">
+          <label for="setorOutro">Informe o Setor/Local *</label>
+          <input id="setorOutro" name="setorOutro" maxlength="140" placeholder="Digite o setor/local não cadastrado" />
+        </div>
+        <div class="field">
+          <label for="categoria">Categoria *</label>
+          <select id="categoria" name="categoria"></select>
+        </div>
+        <div class="field">
+          <label for="prioridade">Prioridade *</label>
+          <select id="prioridade" name="prioridade"></select>
+        </div>
+        <div class="field full">
+          <label for="descricao">Descrição do problema *</label>
+          <textarea id="descricao" name="descricao" maxlength="3000"></textarea>
+        </div>
+        <div class="field full">
+          <label for="anexos">Anexo (opcional) — foto ou vídeo do problema</label>
+          <input id="anexos" name="anexos" type="file" accept="image/*,video/*" />
+          <small id="anexosInfo" class="muted">Nenhum arquivo selecionado.</small>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button id="btnAbrir" class="btn btn-primary" type="button">Abrir chamado</button>
+        <button id="btnLimpar" class="btn btn-ghost" type="button">Limpar</button>
+        <span id="statusForm" class="status muted">Preencha os campos para iniciar.</span>
+      </div>
+      </form>
+
+      <div style="margin-top:10px" class="muted">Protocolo atual: <span id="protocolo" class="proto">—</span></div>
+    </section>
+
+    <section id="chatBox" class="card chat">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h2 class="title" style="font-size:18px;margin:0">💬 Chat do chamado</h2>
+        <span id="chatCount" class="muted" style="font-size:12px;font-weight:800"></span>
+      </div>
+      <!-- Arquivos anexados ao chamado -->
+      <div id="chatAnexosWrap" style="display:none;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:800;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">📎 Arquivos enviados com o chamado</div>
+        <div id="chatAnexosList" class="chat-file-list"></div>
+      </div>
+      <div id="chatMsgs" class="msgs"></div>
+      <div class="chat-input-row">
+        <input id="chatMsg" placeholder="Digite sua mensagem…" maxlength="2000" />
+        <button id="btnEnviar" class="btn btn-primary" type="button">
+          <span>Enviar</span> <span style="font-size:.9rem">➤</span>
+        </button>
+      </div>
+      <div id="statusChat" class="status muted" style="margin-top:6px;font-size:12px"></div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id)=>document.getElementById(id);
+    const CHAT_POLL_MS = 1500; // Reduzido de 2500ms para 1500ms
+    let protocoloAtual = '';
+    let lastWhen = '';
+    let pollTimer = null;
+    let polling = false;
+    let chatSeen = new Set();
+    let chatCountVisible = 0;
+    let pendingMsgId = 0; // ID para mensagens otimistas
+
+    function setStatus(el, msg, type){
+      el.className = 'status ' + (type || 'muted');
+      el.textContent = msg;
+    }
+
+    function addOptions(selectId, values){
+      const sel = $(selectId);
+      sel.innerHTML = '';
+      (values || []).forEach(v=>{
+        const op = document.createElement('option');
+        op.value = v;
+        op.textContent = v;
+        sel.appendChild(op);
+      });
+    }
+
+    function toggleSetorOutro(){
+      const isOutros = $('setor').value === 'OUTROS';
+      $('setorOutroWrap').style.display = isOutros ? '' : 'none';
+      if (!isOutros) $('setorOutro').value = '';
+    }
+
+    function setBusy(btn, busy, txtBusy){
+      if (!btn) return;
+      if (!btn.dataset.defaultText) btn.dataset.defaultText = btn.textContent;
+      if (busy){
+        btn.setAttribute('aria-busy','true');
+        if (txtBusy) btn.textContent = txtBusy;
+      } else {
+        btn.removeAttribute('aria-busy');
+        btn.textContent = btn.dataset.defaultText || btn.textContent;
+      }
+    }
+
+    function maskTelefone(v){
+      const d = String(v || '').replace(/\D/g,'').slice(0,11);
+      if (!d) return '';
+      if (d.length <= 2) return `(${d}`;
+      if (d.length <= 6) return `(${d.slice(0,2)}) ${d.slice(2)}`;
+      if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+      return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    }
+
+    function boot(){
+      google.script.run
+        .withSuccessHandler((res)=>{
+          if (!res || !res.ok){
+            setStatus($('statusForm'), (res && (res.msg || res.error)) || 'Falha ao iniciar formulário.', 'err');
+            return;
+          }
+          const setores = Array.isArray(res.setores) && res.setores.length ? res.setores : ['SEDE'];
+          addOptions('setor', setores.concat(['OUTROS']));
+          toggleSetorOutro();
+          addOptions('categoria', res.categorias || ['Outro']);
+          addOptions('prioridade', res.prioridades || ['NORMAL']);
+          setStatus($('statusForm'), 'Formulário pronto para uso.', 'ok');
+        })
+        .withFailureHandler((err)=> setStatus($('statusForm'), err && err.message ? err.message : 'Erro ao iniciar.', 'err'))
+        .getBootstrap();
+    }
+
+    function abrirChamado(){
+      if ($('btnAbrir').getAttribute('aria-busy') === 'true') return;
+      setBusy($('btnAbrir'), true, 'Abrindo...');
+      const setorSelecionado = $('setor').value;
+      const setorFinal = setorSelecionado === 'OUTROS'
+        ? $('setorOutro').value.trim()
+        : setorSelecionado;
+
+      if (!setorFinal) {
+        setBusy($('btnAbrir'), false);
+        setStatus($('statusForm'), 'Informe o Setor/Local.', 'err');
+        return;
+      }
+
+      // Inject resolved setor into hidden field for the server
+      let hid = document.getElementById('_setorFinal');
+      if (!hid) {
+        hid = document.createElement('input');
+        hid.type = 'hidden'; hid.id = '_setorFinal'; hid.name = '_setorFinal';
+        $('chamadoForm').appendChild(hid);
+      }
+      hid.value = setorFinal;
+
+      setStatus($('statusForm'), 'Enviando chamado...', 'warn');
+
+      google.script.run
+        .withSuccessHandler((res)=>{
+          setBusy($('btnAbrir'), false);
+          if (!res || !res.ok){
+            setStatus($('statusForm'), (res && (res.msg || res.error)) || 'Falha ao abrir chamado.', 'err');
+            return;
+          }
+          protocoloAtual = res.protocolo || '';
+          $('protocolo').textContent = protocoloAtual || '—';
+          setStatus($('statusForm'), 'Chamado aberto! Protocolo: ' + protocoloAtual, 'ok');
+          $('chatBox').classList.add('open');
+          lastWhen = '';
+          chatSeen = new Set();
+          chatCountVisible = 0;
+          $('chatMsgs').innerHTML = '<div class="chat-empty">Aguardando mensagens\u2026</div>';
+          $('chatCount').textContent = '';
+
+          // Exibir arquivos anexados ao chamado
+          const links = Array.isArray(res.anexoLinks) ? res.anexoLinks : [];
+          const nomes = Array.isArray(res.anexoNomes) ? res.anexoNomes : [];
+          if (links.length) {
+            $('chatAnexosWrap').style.display = '';
+            $('chatAnexosList').innerHTML = links.map((url, idx) => {
+              const nome = nomes[idx] || ('Arquivo ' + (idx + 1));
+              const ext = nome.split('.').pop().toUpperCase().slice(0, 5);
+              const icon = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(nome) ? '🖼️'
+                : /\.(pdf)$/i.test(nome) ? '📄'
+                : /\.(mp4|mov|avi|webm)$/i.test(nome) ? '🎥'
+                : '📎';
+              return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener" class="chat-file-item">'
+                + '<span class="chat-file-icon">' + icon + '</span>'
+                + '<span class="chat-file-name">' + escapeHtml(nome) + '</span>'
+                + '<span class="chat-file-badge">' + escapeHtml(ext) + '</span>'
+                + '</a>';
+            }).join('');
+          }
+
+          startPolling();
+        })
+        .withFailureHandler((err)=>{
+          setBusy($('btnAbrir'), false);
+          setStatus($('statusForm'), err && err.message ? err.message : 'Erro ao abrir chamado.', 'err');
+        })
+        .abrirChamadoPublico($('chamadoForm'));
+    }
+
+    function buildMsgEl(it, isPending) {
+      const tipo = String(it.autorTipo || '').toUpperCase();
+      const isSistema = tipo === 'SISTEMA';
+      const isMine = tipo === 'SOLICITANTE';
+      const nome = it.autorNome || (tipo === 'TI' ? 'Técnico' : tipo === 'SISTEMA' ? '' : 'Solicitante');
+      const hora = (it.quando || '').replace('T', ' ').slice(11, 16) || '';
+      const data = (it.quando || '').slice(0, 10) || '';
+      const dataFmt = data ? data.split('-').reverse().join('/') : '';
+
+      const div = document.createElement('div');
+
+      if (isSistema) {
+        div.className = 'chat-system';
+        div.innerHTML = '<span>' + escapeHtml(it.mensagem || '') + '</span>' +
+          '<span class="cb-meta">' + dataFmt + ' ' + hora + '</span>';
+      } else {
+        const pendingCls = isPending ? ' chat-bubble-pending' : '';
+        div.className = 'chat-bubble ' + (isMine ? 'chat-bubble-mine' : 'chat-bubble-other') + pendingCls;
+        const tick = isPending ? ' ⏳' : (it.lido ? ' ✓✓' : ' ✓');
+        const tickCls = isPending ? 'cb-tick' : (it.lido ? 'cb-tick read' : 'cb-tick');
+        div.innerHTML = '<div>' + escapeHtml(it.mensagem || '') + '</div>' +
+          '<div class="cb-meta">' + escapeHtml(nome) + ' • ' + (dataFmt || 'agora') + ' ' + hora +
+          (isMine ? '<span class="' + tickCls + '">' + tick + '</span>' : '') + '</div>';
+      }
+      return div;
+    }
+
+    function appendMsgs(items, skipSeen){
+      if (!items || !items.length) return;
+      const box = $('chatMsgs');
+      // limpa placeholder se existir
+      if (box.querySelector('.chat-empty')) box.innerHTML = '';
+      let added = 0;
+      items.forEach(it=>{
+        const key = `${it.quando || ''}|${it.autorTipo || ''}|${it.autorNome || ''}|${it.mensagem || ''}`;
+        if (!skipSeen && chatSeen.has(key)) return;
+        if (!skipSeen) chatSeen.add(key);
+
+        const div = buildMsgEl(it, false);
+        box.appendChild(div);
+        added++;
+        const tipo = String(it.autorTipo || '').toUpperCase();
+        if (tipo !== 'SISTEMA') chatCountVisible++;
+      });
+      if (added) box.scrollTop = box.scrollHeight;
+      const last = items[items.length - 1];
+      if (last && last.quando) lastWhen = last.quando;
+      $('chatCount').textContent = chatCountVisible + ' msg';
+    }
+
+    function scheduleNextPoll(ms){
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(pollChat, ms);
+    }
+
+    function pollChat(){
+      if (!protocoloAtual || polling) return;
+      polling = true;
+      google.script.run
+        .withSuccessHandler((res)=>{
+          polling = false;
+          if (!res || !res.ok) { scheduleNextPoll(CHAT_POLL_MS); return; }
+          const items = Array.isArray(res.items) ? res.items : [];
+          appendMsgs(items);
+          scheduleNextPoll(CHAT_POLL_MS);
+        })
+        .withFailureHandler(()=>{ polling = false; scheduleNextPoll(CHAT_POLL_MS * 2); })
+        .listarChatPublico({ protocolo: protocoloAtual, since: lastWhen, limit: 80 });
+    }
+
+    function startPolling(){
+      polling = false;
+      scheduleNextPoll(500); // Pequeno delay inicial para não sobrecarregar
+    }
+
+    function enviarMensagem(){
+      if ($('btnEnviar').getAttribute('aria-busy') === 'true') return;
+      if (!protocoloAtual){
+        setStatus($('statusChat'), 'Abra um chamado antes de enviar mensagem.', 'err');
+        return;
+      }
+      const mensagem = $('chatMsg').value.trim();
+      if (!mensagem) return;
+      const autorNome = $('nome').value.trim() || 'Solicitante';
+
+      // ✅ UI OTIMISTA: mostrar mensagem imediatamente
+      const now = new Date();
+      const nowIso = now.toISOString().slice(0, 19);
+      const tempKey = '__pending_' + (++pendingMsgId);
+      const tempItem = {
+        quando: nowIso,
+        autorTipo: 'SOLICITANTE',
+        autorNome,
+        mensagem,
+        lido: false,
+        _tempKey: tempKey
+      };
+
+      const box = $('chatMsgs');
+      if (box.querySelector('.chat-empty')) box.innerHTML = '';
+      const tempEl = buildMsgEl(tempItem, true);
+      tempEl.dataset.tempKey = tempKey;
+      box.appendChild(tempEl);
+      box.scrollTop = box.scrollHeight;
+      chatCountVisible++;
+      $('chatCount').textContent = chatCountVisible + ' msg';
+
+      // Limpar input imediatamente
+      $('chatMsg').value = '';
+      setBusy($('btnEnviar'), true, 'Enviando…');
+      setStatus($('statusChat'), '', 'muted');
+
+      google.script.run
+        .withSuccessHandler((res)=>{
+          setBusy($('btnEnviar'), false);
+          // Remover mensagem pendente
+          const pendingEl = box.querySelector('[data-temp-key="' + tempKey + '"]');
+          if (pendingEl) pendingEl.remove();
+          chatCountVisible = Math.max(0, chatCountVisible - 1);
+
+          if (!res || !res.ok){
+            setStatus($('statusChat'), (res && (res.msg || res.error)) || 'Falha ao enviar mensagem.', 'err');
+            $('chatMsg').value = mensagem; // Restaurar mensagem
+            return;
+          }
+          // Adicionar mensagem confirmada pelo servidor
+          if (res.item) {
+            appendMsgs([res.item]);
+          }
+          setStatus($('statusChat'), '', 'muted');
+          // Poll rápido para sincronizar
+          scheduleNextPoll(300);
+        })
+        .withFailureHandler((err)=>{
+          setBusy($('btnEnviar'), false);
+          // Remover mensagem pendente
+          const pendingEl = box.querySelector('[data-temp-key="' + tempKey + '"]');
+          if (pendingEl) pendingEl.remove();
+          chatCountVisible = Math.max(0, chatCountVisible - 1);
+          $('chatCount').textContent = chatCountVisible + ' msg';
+
+          setStatus($('statusChat'), err && err.message ? err.message : 'Erro ao enviar mensagem.', 'err');
+          $('chatMsg').value = mensagem; // Restaurar mensagem
+          scheduleNextPoll(CHAT_POLL_MS);
+        })
+        .enviarChatPublico({ protocolo: protocoloAtual, autorNome, mensagem });
+    }
+
+    function escapeHtml(s){
+      return String(s || '').replace(/[&<>'"]/g, m=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+    }
+
+    function limpar(){
+      // Parar polling e fechar chat
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+      polling = false;
+      protocoloAtual = '';
+      lastWhen = '';
+      chatSeen = new Set();
+      chatCountVisible = 0;
+      $('chatBox').classList.remove('open');
+      $('chatMsgs').innerHTML = '';
+      $('chatCount').textContent = '';
+      $('protocolo').textContent = '—';
+
+      ['nome','telefone','descricao','chatMsg'].forEach(id=>$(id).value='');
+      if ($('setor').options.length) $('setor').selectedIndex = 0;
+      $('setorOutro').value = '';
+      toggleSetorOutro();
+      if ($('categoria').options.length) $('categoria').selectedIndex = 0;
+      if ($('prioridade').options.length) $('prioridade').selectedIndex = 0;
+      $('anexos').value = '';
+      $('anexosInfo').textContent = 'Nenhum arquivo selecionado.';
+      setStatus($('statusForm'), 'Campos limpos.', 'muted');
+      setStatus($('statusChat'), '', 'muted');
+    }
+
+    $('btnAbrir').onclick = abrirChamado;
+    $('btnLimpar').onclick = limpar;
+    $('btnEnviar').onclick = enviarMensagem;
+    $('setor').addEventListener('change', toggleSetorOutro);
+    $('telefone').addEventListener('input', ()=>{
+      $('telefone').value = maskTelefone($('telefone').value);
+    });
+    $('anexos').addEventListener('change', ()=>{
+      const q = ($('anexos').files || []).length;
+      $('anexosInfo').textContent = q ? `${q} arquivo selecionado.` : 'Nenhum arquivo selecionado.';
+    });
+    $('chatMsg').addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); enviarMensagem(); } });
+
+    boot();
+  </script>
+</body>
+</html>

@@ -328,6 +328,253 @@
       opacity: 0;
       pointer-events: none;
     }
+
+    /* ======= CHAT no Modal ======= */
+    .ti-chat-msgs {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .ti-chat-bubble {
+      max-width: 74%;
+      padding: 5px 9px;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      line-height: 1.26;
+      word-break: break-word;
+      position: relative;
+      width: fit-content;
+    }
+    .ti-chat-bubble-mine {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .ti-chat-bubble-other {
+      align-self: flex-start;
+      background: rgba(100,116,139,.25);
+      color: var(--text-primary);
+      border-bottom-left-radius: 4px;
+    }
+    .ti-chat-bubble .cb-meta {
+      font-size: 0.62rem;
+      opacity: 0.7;
+      margin-top: 1px;
+    }
+    .ti-chat-bubble-mine .cb-meta { text-align: right; }
+    .ti-chat-bubble-other .cb-meta { text-align: left; }
+    .ti-chat-bubble .cb-tick { opacity: 0.6; }
+    .ti-chat-bubble .cb-tick.read { opacity: 1; color: #38bdf8; }
+    .ti-chat-system {
+      align-self: center;
+      text-align: center;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.64rem;
+      font-weight: 700;
+      background: rgba(100,116,139,.12);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ti-chat-system .cb-meta { font-size: 0.65rem; opacity: 0.6; }
+    .ti-chat-empty {
+      text-align: center;
+      padding: 24px;
+      font-weight: 700;
+      opacity: 0.5;
+    }
+
+    /* ======= TOAST NOTIFICATIONS ======= */
+    #ti-toast-container {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 99998;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+      max-width: 380px;
+    }
+    .ti-toast {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid #475569;
+      border-radius: 14px;
+      padding: 14px 18px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      pointer-events: all;
+      animation: ti-toast-in 0.35s cubic-bezier(.21,1.02,.73,1) forwards;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .ti-toast.ti-toast-new { border-color: rgba(239,68,68,0.6); box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+    .ti-toast.ti-toast-ok  { border-color: rgba(34,197,94,0.5); }
+    .ti-toast.ti-toast-info{ border-color: rgba(56,189,248,0.5); }
+    @keyframes ti-toast-in  { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes ti-toast-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+    .ti-toast-icon { font-size: 1.5rem; flex-shrink: 0; line-height: 1; }
+    .ti-toast-body { flex: 1; min-width: 0; }
+    .ti-toast-title { font-weight: 800; font-size: 0.88rem; color: #e2e8f0; }
+    .ti-toast-msg   { font-size: 0.76rem; color: #94a3b8; margin-top: 3px; line-height: 1.4; }
+    .ti-toast-close { cursor: pointer; opacity: 0.5; font-size: 0.85rem; flex-shrink: 0; color: #94a3b8; padding: 2px; }
+    .ti-toast-close:hover { opacity: 1; }
+
+    /* ======= NOTIFICATION BADGE ======= */
+    .ti-notif-badge {
+      position: absolute;
+      top: -7px;
+      right: -7px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 900;
+      border-radius: 999px;
+      padding: 2px 5px;
+      min-width: 18px;
+      text-align: center;
+      line-height: 1.4;
+      animation: ti-badge-pulse 1.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes ti-badge-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
+
+    /* ======= NEW ROW HIGHLIGHT ======= */
+    @keyframes ti-row-new {
+      0%   { background-color: rgba(239,68,68,0.22); }
+      100% { background-color: transparent; }
+    }
+    .ti-row-new { animation: ti-row-new 4s ease-out forwards; }
+
+    /* ======= SKELETON LOADING ======= */
+    .ti-skeleton {
+      background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-card) 50%, var(--bg-secondary) 75%);
+      background-size: 200% 100%;
+      animation: ti-skeleton-wave 1.5s infinite;
+      border-radius: 6px;
+      height: 14px;
+      display: inline-block;
+    }
+    @keyframes ti-skeleton-wave {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ======= LAST UPDATED INDICATOR ======= */
+    .ti-last-upd {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .ti-last-upd.fresh { color: #22c55e; }
+    .ti-last-upd-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+
+    /* ======= FILE VIEWER MODAL ======= */
+    #ti-fileviewer-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 99999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #ti-fileviewer-modal.open { display: flex; }
+    .ti-fv-wrap {
+      width: 100%;
+      max-width: 1100px;
+      max-height: 94vh;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+    }
+    .ti-fv-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid #334155;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .ti-fv-title { font-weight: 800; font-size: 0.95rem; color: #e2e8f0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ti-fv-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .ti-fv-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s;
+    }
+    .ti-fv-btn:hover { background: #334155; }
+    .ti-fv-body {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+      background: #020617;
+    }
+    .ti-fv-body iframe { width: 100%; height: 80vh; border: none; display: block; }
+    .ti-fv-body img   { max-width: 100%; max-height: 80vh; object-fit: contain; display: block; }
+    .ti-fv-body video { max-width: 100%; max-height: 80vh; display: block; }
+    .ti-fv-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 10px 18px;
+      border-top: 1px solid #334155;
+      flex-shrink: 0;
+    }
+    .ti-fv-nav-btn {
+      padding: 6px 16px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ti-fv-nav-btn:hover:not(:disabled) { background: #334155; }
+    .ti-fv-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .ti-fv-nav-info { font-size: 0.8rem; color: #94a3b8; font-weight: 700; min-width: 60px; text-align: center; }
+
+    /* ======= GLOBAL DOUBLE-CLICK / BUSY PREVENTION ======= */
+    /* Cursor wait em qualquer botão com aria-busy ou recém clicado */
+    button[aria-busy="true"],
+    a[aria-busy="true"],
+    [data-ti-clicking="1"] {
+      cursor: wait !important;
+      opacity: 0.75 !important;
+      pointer-events: none !important;
+    }
   </style>
 </head>
 
@@ -384,15 +631,33 @@
             💻 Máquinas
           </button>
 
-          <button id="ti_btnRefresh" type="button"
-            class="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 transition font-semibold shadow-lg shadow-emerald-500/20">
-            🔄 Atualizar
-          </button>
+          <!-- Refresh com badge de notificação -->
+          <div class="relative">
+            <button id="ti_btnRefresh" type="button"
+              class="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 transition font-semibold shadow-lg shadow-emerald-500/20"
+              onclick="clearNotifBadge()">
+              🔄 Atualizar
+            </button>
+            <span id="ti-notif-badge" class="ti-notif-badge" style="display:none">0</span>
+          </div>
 
           <button id="ti_btnAuto" type="button"
             class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold">
             ⏱️ Auto: OFF
           </button>
+
+          <!-- Som do dashboard -->
+          <button id="ti_btnDashSound" type="button"
+            title="Ativar/desativar som de notificação"
+            class="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition font-semibold text-sm"
+            onclick="tiDashMuted=!tiDashMuted; this.textContent=tiDashMuted?'🔕':'🔔';">
+            🔕
+          </button>
+
+          <!-- Indicador de última atualização -->
+          <span id="ti-last-upd" class="ti-last-upd">
+            <span class="ti-last-upd-dot"></span> —
+          </span>
 
           <button id="ti_btnSair" type="button"
             class="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 transition font-semibold">
@@ -470,7 +735,7 @@
             <label class="text-xs font-semibold" style="color: var(--text-secondary);">Busca</label>
             <input id="ti_q" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
               style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"
-              placeholder="ID, solicitante, unidade, título…" />
+              placeholder="ID, solicitante, unidade, descrição…" />
           </div>
 
           <div>
@@ -483,8 +748,7 @@
               <option>PENDENTE</option>
               <option>AGUARDANDO</option>
               <option>RESOLVIDO</option>
-              <option>CONCLUIDO</option>
-              <option>CONCLUÍDO</option>
+              <option value="CONCLUIDO">CONCLUÍDO</option>
             </select>
           </div>
 
@@ -533,7 +797,6 @@
                 <th class="text-left px-4 py-3">Prioridade</th>
                 <th class="text-left px-4 py-3">Unidade</th>
                 <th class="text-left px-4 py-3">Solicitante</th>
-                <th class="text-left px-4 py-3">Título</th>
                 <th class="text-left px-4 py-3">Responsável</th>
                 <th class="text-left px-4 py-3">Atualizado</th>
                 <th class="text-left px-4 py-3">Ações</th>
@@ -547,9 +810,9 @@
 
     <!-- Modal: editar/criar -->
     <div id="ti_modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[9999]">
-      <div class="w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300"
+      <div class="w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden transition-colors duration-300 max-h-[92vh] flex flex-col"
            style="background-color: var(--bg-card); border: 1px solid var(--border-color);">
-        <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color: var(--border-color);">
+        <div class="px-5 py-4 border-b flex items-center justify-between flex-shrink-0" style="border-color: var(--border-color);">
           <div>
             <h3 id="ti_mTitle" class="font-extrabold text-lg" style="color: var(--text-primary);">Chamado</h3>
             <p id="ti_mSub" class="text-sm" style="color: var(--text-secondary);">—</p>
@@ -558,7 +821,7 @@
             style="background-color: var(--bg-secondary); color: var(--text-primary);">Fechar</button>
         </div>
 
-        <div class="p-5 space-y-3">
+        <div class="p-5 space-y-3 overflow-y-auto flex-1">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label class="text-xs font-semibold" style="color: var(--text-secondary);">Status</label>
@@ -616,15 +879,31 @@
           </div>
 
           <div>
-            <label class="text-xs font-semibold" style="color: var(--text-secondary);">Título</label>
-            <input id="m_titulo" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
-              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);" />
-          </div>
-
-          <div>
             <label class="text-xs font-semibold" style="color: var(--text-secondary);">Descrição</label>
             <textarea id="m_desc" rows="4" class="w-full mt-1 px-3 py-2 rounded-xl border outline-none transition-colors duration-300"
               style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></textarea>
+          </div>
+
+          <div id="m_anexosWrap" class="hidden">
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Arquivos anexados</label>
+              <button id="m_anexosSearch" type="button" class="px-2 py-1 rounded-lg text-xs font-bold"
+                style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);">
+                🔍 Buscar no Drive
+              </button>
+            </div>
+            <div id="m_anexosHint" class="text-xs mt-1" style="color: var(--text-secondary);"></div>
+            <div id="m_anexosList" class="mt-1 rounded-xl border p-2 text-sm"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"></div>
+            <div id="m_anexoPreviewWrap" class="hidden mt-2 rounded-xl border p-2"
+              style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <span id="m_anexoPreviewTitle" class="text-xs font-bold" style="color: var(--text-secondary);">Visualização</span>
+                <a id="m_anexoPreviewOpen" href="#" target="_blank" rel="noopener" class="text-xs font-bold underline" style="color: var(--text-secondary);">Abrir em nova aba</a>
+              </div>
+              <div id="m_anexoPreviewBody" class="rounded-lg border overflow-hidden"
+                style="min-height: 220px; border-color: var(--border-color); background-color: var(--bg-card);"></div>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -655,6 +934,38 @@
 
           <div id="ti_histBox" class="hidden mt-3 border rounded-2xl p-3 max-h-56 overflow-auto scrollbar-thin transition-colors duration-300"
             style="border-color: var(--border-color); background-color: var(--bg-secondary);"></div>
+
+          <!-- ===== CHAT ===== -->
+          <div id="ti_chatWrap" class="hidden mt-2">
+            <div class="flex items-center gap-2 mb-2">
+              <button id="ti_btnChat" class="px-4 py-2 rounded-xl font-extrabold text-sm flex items-center gap-2 transition-all"
+                style="background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);">
+                💬 Abrir Chat
+              </button>
+              <span id="ti_chatCount" class="text-xs font-bold px-2 py-0.5 rounded-full bg-sky-500/20 hidden" style="color: var(--text-secondary);"></span>
+              <span id="ti_chatSts" class="text-xs font-semibold hidden" style="color: var(--text-secondary);"></span>
+            </div>
+
+            <div id="ti_chatSection" class="hidden border rounded-2xl overflow-hidden transition-colors duration-300"
+                style="border-color: var(--border-color); background-color: var(--bg-secondary);">
+              <div class="px-4 py-2 border-b flex items-center justify-between" style="border-color: var(--border-color);">
+                <span class="font-extrabold text-sm" style="color: var(--text-primary);">💬 Chat com Solicitante</span>
+                <button id="ti_btnChatClose" class="text-xs font-bold px-3 py-1 rounded-lg transition-all hover:bg-red-500/20"
+                  style="color: var(--text-secondary);">
+                  ❌ Encerrar Chat
+                </button>
+              </div>
+              <div id="ti_chatMsgs" class="ti-chat-msgs p-2 overflow-y-auto scrollbar-thin" style="max-height: 170px; min-height: 56px;"></div>
+              <div class="px-2 pb-2 pt-1 flex gap-2">
+                <input id="ti_chatInput" class="flex-1 px-2.5 py-1.5 rounded-xl border outline-none font-semibold text-xs transition-colors duration-300"
+                  style="background-color: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);"
+                  placeholder="Digite sua resposta…" maxlength="2000" />
+                <button id="ti_chatSend" class="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 font-extrabold text-xs text-white flex-shrink-0">
+                  Enviar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1243,12 +1554,15 @@
       ti_boot: 'ti_boot',
       ti_list: 'ti_list',
       ti_get: 'ti_get',
+      ti_drive_anexos: 'ti_listarAnexosDrive',
       ti_create: 'ti_create',
       ti_update: 'ti_update',
       ti_hist: 'ti_hist',
       ti_report: 'ti_report',
       ti_tecnicos: 'ti_listarTecnicos',
       ti_set_tecnico: 'ti_setTecnicoAtual',
+      ti_chat_send: 'ti_chat_enviar',
+      ti_chat_list: 'ti_chat_listar',
       maq_list: 'maq_listar',
       maq_get: 'maq_obter',
       maq_create: 'maq_criar',
@@ -1274,25 +1588,27 @@
     return cur;
   }
 
-  async function api(apiName, payload){
+  async function api(apiName, payload, skipCache){
+    const reqPayload = payload || {};
+
     // Check cache for read-only operations
-    if (!payload || Object.keys(payload).length === 0) {
+    if (!skipCache) {
       if (apiName === 'ti_boot') {
         const cached = AppCache.get('boot', 60000);
         if (cached) return cached;
       } else if (apiName === 'maq_list' || apiName === 'ti_list') {
-        const cacheKey = apiName + JSON.stringify(payload);
+        const cacheKey = apiName + JSON.stringify(reqPayload);
         const cached = AppCache.get(cacheKey, 15000);
         if (cached) return cached;
       }
     }
 
     if (useBridge()) {
-      const data = await callBridge(apiName, payload);
+      const data = await callBridge(apiName, reqPayload);
       if (data && data.ok) {
         if (apiName === 'ti_boot') AppCache.set('boot', data);
         else if (apiName === 'maq_list' || apiName === 'ti_list') {
-          const cacheKey = apiName + JSON.stringify(payload);
+          const cacheKey = apiName + JSON.stringify(reqPayload);
           AppCache.set(cacheKey, data);
         }
       }
@@ -1304,7 +1620,7 @@
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify(payload || {})
+        body: JSON.stringify(reqPayload)
       });
       const data = await res.json();
       
@@ -1312,7 +1628,7 @@
       if (data.ok) {
         if (apiName === 'ti_boot') AppCache.set('boot', data);
         else if (apiName === 'maq_list' || apiName === 'ti_list') {
-          const cacheKey = apiName + JSON.stringify(payload);
+          const cacheKey = apiName + JSON.stringify(reqPayload);
           AppCache.set(cacheKey, data);
         }
       }
@@ -1320,7 +1636,7 @@
       return data;
     }catch(e){
       if (!hasBridge()) throw e;
-      return await callBridge(apiName, payload);
+      return await callBridge(apiName, reqPayload);
     }
   }
 
@@ -1366,8 +1682,9 @@
       return;
     }
 
-    // Limpar timer da TV ao sair
+    // Limpar timers ao sair de uma view
     if (currentViewState === 'ti_tv') stopTvRefresh();
+    if (currentViewState === 'ti') stopAutoRefresh();
 
     // Fade out current view
     const allViews = ['tiApp', 'tvApp', 'relApp', 'maqApp', 'maqStatsApp'];
@@ -1434,6 +1751,57 @@
   let autoTimer = null;
   let currentId = '';
   let tecnicoAtual = '';
+  let openingChamado = false;
+  let chatPollTimer = null;
+  const chatSeen = new Set();
+  let chatLastWhen = '';
+  let chatMsgCount = 0;
+  let chatPendingSeq = 0;
+  let chatSending = false;
+
+  function setOpeningChamadoUiBusy(on){
+    const tbody = $('ti_tbody');
+    document.body.style.cursor = on ? 'progress' : '';
+    if (tbody) {
+      tbody.style.pointerEvents = on ? 'none' : '';
+      tbody.style.opacity = on ? '.75' : '';
+    }
+  }
+
+  function withTimeout(promise, timeoutMs, msg){
+    const limit = Math.max(2000, parseInt(timeoutMs || 15000, 10) || 15000);
+    let timer = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(msg || 'Tempo de resposta esgotado.')), limit);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  async function openChamadoSafe(id){
+    if (!id) return;
+    if (openingChamado) return;
+
+    openingChamado = true;
+    setOpeningChamadoUiBusy(true);
+    try {
+      await withTimeout(openChamado(id), 15000, 'Demorou para abrir o chamado.');
+    } catch(e) {
+      console.warn('Falha ao abrir chamado:', e);
+      try {
+        if (typeof showToast === 'function') {
+          showToast('Falha ao abrir chamado', 'Tente novamente em alguns segundos.', 'warn');
+        } else {
+          const info = $('ti_info');
+          if (info) info.textContent = 'Falha ao abrir chamado. Tente novamente.';
+        }
+      } catch(_){ }
+    } finally {
+      openingChamado = false;
+      setOpeningChamadoUiBusy(false);
+    }
+  }
 
   function showModal(el, on){
     el.classList.toggle('hidden', !on);
@@ -1473,8 +1841,8 @@
     
     const quickActions = `
       <div class="flex gap-1" onclick="event.stopPropagation()">
-        <button onclick="quickStatus('${item.id}', 'EM ANDAMENTO')" title="Colocar em andamento" class="px-2 py-1 text-xs rounded bg-sky-600/30 hover:bg-sky-600/50">🔵</button>
-        <button onclick="quickStatus('${item.id}', 'RESOLVIDO')" title="Marcar como resolvido" class="px-2 py-1 text-xs rounded bg-emerald-600/30 hover:bg-emerald-600/50">✅</button>
+        <button onclick="quickStatus('${item.id}', 'EM ANDAMENTO', this)" title="Colocar em andamento" class="px-2 py-1 text-xs rounded bg-sky-600/30 hover:bg-sky-600/50">🔵</button>
+        <button onclick="quickStatus('${item.id}', 'RESOLVIDO', this)" title="Marcar como resolvido" class="px-2 py-1 text-xs rounded bg-emerald-600/30 hover:bg-emerald-600/50">✅</button>
       </div>
     `;
     
@@ -1485,7 +1853,6 @@
         <td class="px-4 py-3"><span class="font-bold">${item.prioridade||'—'}</span></td>
         <td class="px-4 py-3">${item.unidade||'—'}</td>
         <td class="px-4 py-3">${item.solicitante||'—'}</td>
-        <td class="px-4 py-3">${item.titulo||'—'}</td>
         <td class="px-4 py-3">${item.responsavel||'—'}</td>
         <td class="px-4 py-3 text-slate-300">${(item.atualizadoEm||'').toString().replace('T',' ').slice(0,16)}</td>
         <td class="px-4 py-3">${quickActions}</td>
@@ -1518,20 +1885,24 @@
     }
   }
 
+  let _loadListRunning = false;
   async function loadList(){
+    if (_loadListRunning) return;
+    _loadListRunning = true;
     $('ti_btnRefresh').setAttribute('aria-busy','true');
     try{
       const q = $('ti_q').value || '';
       const status = $('ti_status').value || '';
       const prio = $('ti_prio').value || '';
       const unidade = $('ti_unidade').value || '';
-      const pack = await api('ti_list', { q, status, prioridade: prio, unidade, limit: 500 });
+      const pack = await api('ti_list', { q, status, prioridade: prio, unidade, limit: 300 });
       const items = (pack && pack.items) ? pack.items : [];
       kpiFromItems(items);
       $('ti_info').textContent = `${items.length} chamados`;
       $('ti_tbody').innerHTML = items.map(rowHtml).join('');
     } finally {
       $('ti_btnRefresh').removeAttribute('aria-busy');
+      _loadListRunning = false;
     }
   }
 
@@ -1555,13 +1926,418 @@
     $('m_unidade').value = it.unidade || '';
     $('m_solic').value = it.solicitante || '';
     $('m_contato').value = it.contato || '';
-    $('m_titulo').value = it.titulo || '';
     $('m_desc').value = it.descricao || '';
     $('m_resp').value = it.responsavel || tecnicoAtual || '';
     $('m_prev').value = it.previsao || '';
     $('m_last').value = it.ultimaAcao || '';
 
+    const links = Array.isArray(it.anexoLinks) ? it.anexoLinks : [];
+    const nomes = Array.isArray(it.anexoNomes) ? it.anexoNomes : [];
+    if (links.length) {
+      const anexos = links.map((url, i) => ({
+        url: String(url || ''),
+        nome: String(nomes[i] || ('Anexo ' + (i + 1)))
+      })).filter(a => !!a.url);
+
+      $('m_anexosWrap').classList.remove('hidden');
+      const listEl = $('m_anexosList');
+      listEl.innerHTML = '';
+      anexos.forEach((anexo, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 px-3 py-2 rounded-lg mb-1';
+        row.style.backgroundColor = 'var(--bg-card)';
+        row.style.border = '1px solid var(--border-color)';
+
+        const left = document.createElement('div');
+        left.className = 'text-sm font-semibold truncate';
+        left.textContent = '📎 ' + anexo.nome;
+
+        const right = document.createElement('div');
+        right.className = 'flex items-center gap-2 flex-shrink-0';
+
+        const btnPreview = document.createElement('button');
+        btnPreview.type = 'button';
+        btnPreview.className = 'px-2 py-1 rounded-lg text-xs font-bold';
+        btnPreview.style.backgroundColor = 'var(--bg-secondary)';
+        btnPreview.style.border = '1px solid var(--border-color)';
+        btnPreview.style.color = 'var(--text-primary)';
+        btnPreview.textContent = '👁️ Visualizar';
+        btnPreview.onclick = () => ti_renderAnexoPreview(anexo, idx + 1);
+
+        const linkOpen = document.createElement('a');
+        linkOpen.href = anexo.url;
+        linkOpen.target = '_blank';
+        linkOpen.rel = 'noopener';
+        linkOpen.className = 'px-2 py-1 rounded-lg text-xs font-bold underline';
+        linkOpen.style.color = 'var(--text-secondary)';
+        linkOpen.textContent = 'Abrir';
+
+        right.appendChild(btnPreview);
+        right.appendChild(linkOpen);
+        row.appendChild(left);
+        row.appendChild(right);
+        listEl.appendChild(row);
+      });
+
+      ti_renderAnexoPreview(anexos[0], 1);
+    } else {
+      $('m_anexosWrap').classList.add('hidden');
+      $('m_anexosList').innerHTML = '';
+      $('m_anexoPreviewWrap').classList.add('hidden');
+      $('m_anexoPreviewBody').innerHTML = '';
+    }
+
     showModal($('ti_modal'), true);
+    // Mostrar wrap do chat com botão, pré-carregar contagem
+    $('ti_chatWrap').classList.remove('hidden');
+    closeChat(); // garante começa fechado
+    preloadChatCount();
+  }
+
+  // ===== CHAT =====
+  function chatBubbleHtml(msg) {
+    const tipo = (msg.autorTipo || '').toUpperCase();
+    const isSistema = tipo === 'SISTEMA';
+    const isMine = tipo === 'TI'; // No sistema, TI é quem está usando
+    const nome = msg.autorNome || (tipo === 'TI' ? 'Técnico' : tipo === 'SISTEMA' ? '' : 'Solicitante');
+    const hora = (msg.quando || '').replace('T', ' ').slice(11, 16) || '';
+    const data = (msg.quando || '').slice(0, 10) || '';
+    const dataFmt = data ? data.split('-').reverse().join('/') : '';
+
+    if (isSistema) {
+      return `<div class="ti-chat-system">
+        <span>${escChat(msg.mensagem || '')}</span>
+        <span class="cb-meta">${dataFmt} ${hora}</span>
+      </div>`;
+    }
+
+    const cls = isMine ? 'ti-chat-bubble-mine' : 'ti-chat-bubble-other';
+    const tick = msg.lido ? ' ✓✓' : ' ✓';
+    const tickCls = msg.lido ? 'cb-tick read' : 'cb-tick';
+    return `<div class="ti-chat-bubble ${cls}">
+      <div>${escChat(msg.mensagem || '')}</div>
+      <div class="cb-meta">${nome} • ${dataFmt} ${hora}${isMine ? `<span class="${tickCls}">${tick}</span>` : ''}</div>
+    </div>`;
+  }
+
+  function chatPendingBubbleHtml(texto, nomeTecnico){
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    return `<div class="ti-chat-bubble ti-chat-bubble-mine" style="opacity:.68" data-pending="1">
+      <div>${escChat(texto || '')}</div>
+      <div class="cb-meta">${escChat(nomeTecnico || 'Técnico')} • ${hh}:${mm}<span class="cb-tick"> ⏳</span></div>
+    </div>`;
+  }
+
+  function escChat(t) {
+    const d = document.createElement('div');
+    d.textContent = t;
+    return d.innerHTML;
+  }
+
+  function chatMsgKey(msg) {
+    const quando = String(msg && msg.quando || '').trim().replace(/\.\d+/, '');
+    const autorTipo = String(msg && msg.autorTipo || '').trim().toUpperCase();
+    const autorNome = String(msg && msg.autorNome || '').trim().toLowerCase();
+    const mensagem = String(msg && msg.mensagem || '').trim().replace(/\s+/g, ' ');
+    return `${quando}|${autorTipo}|${autorNome}|${mensagem}`;
+  }
+
+  function ti_getDriveFileId(url) {
+    const s = String(url || '');
+    const m1 = s.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+    if (m1 && m1[1]) return m1[1];
+    const m2 = s.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+    if (m2 && m2[1]) return m2[1];
+    return '';
+  }
+
+  function ti_guessAnexoType(url, nome) {
+    const ref = String(nome || url || '').toLowerCase();
+    if (/\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/.test(ref)) return 'image';
+    if (/\.(mp4|webm|ogg|mov|m4v)(\?|$)/.test(ref)) return 'video';
+    if (/\.(pdf)(\?|$)/.test(ref)) return 'pdf';
+    return 'other';
+  }
+
+  function ti_renderAnexoPreview(anexo, idx) {
+    const wrap = $('m_anexoPreviewWrap');
+    const body = $('m_anexoPreviewBody');
+    const title = $('m_anexoPreviewTitle');
+    const open = $('m_anexoPreviewOpen');
+    if (!wrap || !body || !title || !open || !anexo || !anexo.url) return;
+
+    wrap.classList.remove('hidden');
+    title.textContent = 'Visualização • ' + (anexo.nome || ('Anexo ' + idx));
+    open.href = anexo.url;
+    body.innerHTML = '';
+
+    const tipo = ti_guessAnexoType(anexo.url, anexo.nome);
+    const driveId = ti_getDriveFileId(anexo.url);
+
+    if (tipo === 'image') {
+      const img = document.createElement('img');
+      img.alt = anexo.nome || ('Anexo ' + idx);
+      img.className = 'w-full h-auto block';
+      img.style.maxHeight = '420px';
+      img.style.objectFit = 'contain';
+      img.src = driveId ? ('https://drive.google.com/uc?export=view&id=' + encodeURIComponent(driveId)) : anexo.url;
+      body.appendChild(img);
+      return;
+    }
+
+    if (tipo === 'video') {
+      if (driveId) {
+        const iframe = document.createElement('iframe');
+        iframe.className = 'w-full';
+        iframe.style.height = '420px';
+        iframe.src = 'https://drive.google.com/file/d/' + encodeURIComponent(driveId) + '/preview';
+        iframe.setAttribute('allow', 'autoplay');
+        body.appendChild(iframe);
+      } else {
+        const video = document.createElement('video');
+        video.controls = true;
+        video.className = 'w-full';
+        video.style.maxHeight = '420px';
+        video.src = anexo.url;
+        body.appendChild(video);
+      }
+      return;
+    }
+
+    if (tipo === 'pdf' || driveId) {
+      const iframe = document.createElement('iframe');
+      iframe.className = 'w-full';
+      iframe.style.height = '420px';
+      iframe.src = driveId
+        ? ('https://drive.google.com/file/d/' + encodeURIComponent(driveId) + '/preview')
+        : anexo.url;
+      body.appendChild(iframe);
+      return;
+    }
+
+    if (String(anexo.url || '').startsWith('http')) {
+      const iframe = document.createElement('iframe');
+      iframe.className = 'w-full';
+      iframe.style.height = '420px';
+      iframe.src = anexo.url;
+      body.appendChild(iframe);
+      return;
+    }
+
+    const empty = document.createElement('div');
+    empty.className = 'h-full min-h-[220px] flex items-center justify-center px-3 text-center text-sm font-semibold';
+    empty.style.color = 'var(--text-secondary)';
+    empty.textContent = 'Pré-visualização não disponível para este arquivo. Use "Abrir em nova aba".';
+    body.appendChild(empty);
+  }
+
+  let _loadChatRunning = false;
+  async function loadChat(reset = false) {
+    if (!currentId) return;
+    if (_loadChatRunning) return;
+    _loadChatRunning = true;
+    try {
+      const req = { id: currentId, leitor: 'TI', limit: reset ? 250 : 120 };
+      if (!reset && chatLastWhen) req.since = chatLastWhen;
+      const res = await api('ti_chat_list', req);
+      const items = (res && res.items) ? res.items : [];
+      const container = $('ti_chatMsgs');
+      if (reset && !items.length) {
+        container.innerHTML = '<div class="ti-chat-empty">Nenhuma mensagem ainda.</div>';
+        $('ti_chatCount').textContent = '';
+        $('ti_chatCount').classList.add('hidden');
+        return;
+      }
+
+      let hasNew = false;
+      const newItems = [];
+      items.forEach(m => {
+        const key = chatMsgKey(m);
+        if (!chatSeen.has(key)) {
+          chatSeen.add(key);
+          newItems.push(m);
+          if ((m.autorTipo||'').toUpperCase() !== 'SISTEMA') chatMsgCount++;
+          hasNew = true;
+        }
+      });
+
+      if (reset || container.children.length === 0 || (container.children.length === 1 && container.querySelector('.ti-chat-empty'))) {
+        container.innerHTML = items.map(chatBubbleHtml).join('');
+        chatMsgCount = items.filter(m => (m.autorTipo||'').toUpperCase() !== 'SISTEMA').length;
+        container.scrollTop = container.scrollHeight;
+      } else if (hasNew) {
+        container.insertAdjacentHTML('beforeend', newItems.map(chatBubbleHtml).join(''));
+        container.scrollTop = container.scrollHeight;
+      }
+
+      if (items.length) {
+        const last = items[items.length - 1];
+        if (last && last.quando) chatLastWhen = last.quando;
+      }
+
+      $('ti_chatCount').textContent = chatMsgCount + ' msg';
+      $('ti_chatCount').classList.remove('hidden');
+    } catch(e) {
+      console.warn('Chat load error:', e);
+    } finally {
+      _loadChatRunning = false;
+    }
+  }
+
+  async function sendChatMsg() {
+    if (chatSending) return;
+    const input = $('ti_chatInput');
+    const msg = (input.value || '').trim();
+    if (!msg || !currentId) return;
+    const btn = $('ti_chatSend');
+    const tempId = 'pend_' + (++chatPendingSeq);
+    const tecnicoNome = tecnicoAtual || 'Técnico';
+
+    const container = $('ti_chatMsgs');
+    if (container.children.length === 1 && container.querySelector('.ti-chat-empty')) container.innerHTML = '';
+    container.insertAdjacentHTML('beforeend', chatPendingBubbleHtml(msg, tecnicoNome).replace('data-pending="1"', `data-pending="1" data-temp-id="${tempId}"`));
+    container.scrollTop = container.scrollHeight;
+    chatMsgCount++;
+    $('ti_chatCount').textContent = chatMsgCount + ' msg';
+    $('ti_chatCount').classList.remove('hidden');
+
+    input.value = '';
+    btn.setAttribute('aria-busy', 'true');
+    input.disabled = true;
+    chatSending = true;
+    try {
+      const res = await api('ti_chat_send', {
+        id: currentId,
+        mensagem: msg,
+        autorTipo: 'TI',
+        autorNome: tecnicoNome
+      });
+
+      const tempEl = container.querySelector(`.ti-chat-bubble[data-temp-id="${tempId}"]`);
+
+      if (res && res.ok) {
+        if (res.item) {
+          const item = res.item;
+          const key = chatMsgKey(item);
+          if (!chatSeen.has(key)) {
+            if (container.children.length === 1 && container.querySelector('.ti-chat-empty')) container.innerHTML = '';
+            chatSeen.add(key);
+            if (tempEl) tempEl.outerHTML = chatBubbleHtml(item);
+            else container.insertAdjacentHTML('beforeend', chatBubbleHtml(item));
+            container.scrollTop = container.scrollHeight;
+            $('ti_chatCount').textContent = chatMsgCount + ' msg';
+            $('ti_chatCount').classList.remove('hidden');
+            if (item.quando) chatLastWhen = item.quando;
+          } else if (tempEl) {
+            tempEl.remove();
+          }
+        } else if (tempEl) {
+          tempEl.remove();
+        }
+      } else {
+        if (tempEl) tempEl.remove();
+        chatMsgCount = Math.max(0, chatMsgCount - 1);
+        $('ti_chatCount').textContent = chatMsgCount + ' msg';
+        input.value = msg;
+        alert(res && res.msg ? res.msg : 'Falha ao enviar mensagem.');
+      }
+    } catch(e) {
+      const tempEl = container.querySelector(`.ti-chat-bubble[data-temp-id="${tempId}"]`);
+      if (tempEl) tempEl.remove();
+      chatMsgCount = Math.max(0, chatMsgCount - 1);
+      $('ti_chatCount').textContent = chatMsgCount + ' msg';
+      input.value = msg;
+      alert('Erro ao enviar: ' + e.message);
+    } finally {
+      chatSending = false;
+      btn.removeAttribute('aria-busy');
+      input.disabled = false;
+      input.focus();
+    }
+  }
+
+  let chatOpen = false;
+
+  function toggleChat() {
+    if (chatOpen) {
+      endChat();
+    } else {
+      openChat();
+    }
+  }
+
+  async function openChat() {
+    if (!currentId) return;
+    chatOpen = true;
+    chatSeen.clear();
+    chatLastWhen = '';
+    chatMsgCount = 0;
+    $('ti_chatSection').classList.remove('hidden');
+    $('ti_btnChat').innerHTML = '💬 Chat Aberto';
+    $('ti_btnChat').style.background = 'rgba(14,165,233,0.15)';
+    $('ti_btnChat').style.borderColor = 'rgba(14,165,233,0.4)';
+    $('ti_chatSts').classList.remove('hidden');
+    $('ti_chatSts').textContent = 'Conectado';
+    $('ti_chatSts').style.color = '#22c55e';
+    $('ti_chatMsgs').innerHTML = '<div class="ti-chat-empty">Carregando…</div>';
+    $('ti_chatCount').textContent = '';
+    // Enviar evento de sistema
+    api('ti_chat_send', {
+      id: currentId,
+      mensagem: 'Chat iniciado pelo técnico',
+      autorTipo: 'SISTEMA',
+      autorNome: tecnicoAtual || 'Sistema'
+    }).catch(()=>{});
+    await loadChat(true);
+    chatPollTimer = setInterval(()=>loadChat(false), 8000);
+  }
+
+  async function endChat() {
+    if (!currentId) { closeChat(); return; }
+    // Enviar evento de encerramento
+    try {
+      await api('ti_chat_send', {
+        id: currentId,
+        mensagem: 'Chat encerrado pelo técnico',
+        autorTipo: 'SISTEMA',
+        autorNome: tecnicoAtual || 'Sistema'
+      });
+    } catch(_){}
+    closeChat();
+  }
+
+  function closeChat() {
+    chatOpen = false;
+    stopChatPoll();
+    chatLastWhen = '';
+    chatMsgCount = 0;
+    $('ti_chatSection').classList.add('hidden');
+    $('ti_btnChat').innerHTML = '💬 Abrir Chat';
+    $('ti_btnChat').style.background = '';
+    $('ti_btnChat').style.borderColor = '';
+    $('ti_chatSts').classList.add('hidden');
+  }
+
+  function stopChatPoll() {
+    if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+  }
+
+  function preloadChatCount() {
+    if (!currentId) return;
+    chatSeen.clear();
+    api('ti_chat_list', { id: currentId, limit: 150 }).then(res => {
+      const items = (res && res.items) ? res.items : [];
+      const msgCount = items.filter(m => (m.autorTipo||'').toUpperCase() !== 'SISTEMA').length;
+      if (msgCount) {
+        $('ti_chatCount').textContent = msgCount + ' msg';
+        $('ti_chatCount').classList.remove('hidden');
+      } else {
+        $('ti_chatCount').textContent = '';
+        $('ti_chatCount').classList.add('hidden');
+      }
+    }).catch(()=>{});
   }
 
   async function saveChamado(isNovo){
@@ -1573,7 +2349,6 @@
       unidade: $('m_unidade').value,
       solicitante: $('m_solic').value,
       contato: $('m_contato').value,
-      titulo: $('m_titulo').value,
       descricao: $('m_desc').value,
       responsavel: $('m_resp').value,
       previsao: $('m_prev').value,
@@ -1600,22 +2375,7 @@
     }
   }
 
-  async function toggleAuto(){
-    const on = !!autoTimer;
-    if (on){
-      clearInterval(autoTimer);
-      autoTimer = null;
-      $('ti_btnAuto').textContent = '⏱️ Auto: OFF';
-      $('ti_btnAuto').classList.remove('bg-emerald-500/30');
-      $('ti_btnAuto').classList.add('bg-slate-700');
-    } else {
-      autoTimer = setInterval(loadList, 15000);
-      $('ti_btnAuto').textContent = '⏱️ Auto: ON';
-      $('ti_btnAuto').classList.add('bg-emerald-500/30');
-      $('ti_btnAuto').classList.remove('bg-slate-700');
-      await loadList();
-    }
-  }
+  // toggleAuto original removida — usa versão override abaixo
 
   async function openTecModal(){
     const pack = await api('ti_tecnicos', {});
@@ -1648,16 +2408,76 @@
 
   async function loadHist(){
     if (!currentId) return;
-    const h = await api('ti_hist', { id: currentId });
-    const items = (h && h.items) ? h.items : [];
-    $('ti_histBox').innerHTML = items.map(x=>`
-      <div class="mb-2">
-        <div class="text-slate-200 font-bold">${x.acao} <span class="text-slate-400 font-semibold">• ${x.quando}</span></div>
-        <div class="text-slate-300 whitespace-pre-wrap">${x.detalhes || ''}</div>
-        <div class="text-slate-500 text-xs font-semibold">${x.usuario || ''} ${x.setor ? '• '+x.setor : ''}</div>
-      </div>
-      <div class="h-px bg-slate-700/60 my-2"></div>
-    `).join('') || `<div class="text-slate-300 font-semibold">Sem histórico.</div>`;
+    // Buscar histórico de ações E mensagens do chat em paralelo
+    const [h, c] = await Promise.all([
+      api('ti_hist', { id: currentId }),
+      api('ti_chat_list', { id: currentId, leitor: 'TI', limit: 500 })
+    ]);
+
+    const histItems = (h && h.items) ? h.items : [];
+    const chatItems = (c && c.items) ? c.items : [];
+
+    // Construir timeline unificada
+    const timeline = [];
+
+    histItems.forEach(x => {
+      const acao = String(x.acao||'');
+      // Pular itens de chat do histórico (já temos do chat direto)
+      if (acao.startsWith('CHAT_')) return;
+      timeline.push({
+        type: 'hist',
+        quando: x.quando || '',
+        html: `<div class="mb-2">
+          <div style="color:var(--text-primary);" class="font-bold">${escChat(acao)} <span style="color:var(--text-secondary);" class="font-semibold">• ${escChat(x.quando||'')}</span></div>
+          <div style="color:var(--text-primary);opacity:.85;" class="whitespace-pre-wrap">${escChat(x.detalhes || '')}</div>
+          <div style="color:var(--text-secondary);" class="text-xs font-semibold">${escChat(x.usuario || '')} ${x.setor ? '• '+escChat(x.setor) : ''}</div>
+        </div>`
+      });
+    });
+
+    chatItems.forEach(m => {
+      const tipo = (m.autorTipo||'').toUpperCase();
+      const nome = m.autorNome || (tipo === 'TI' ? 'Técnico' : 'Solicitante');
+      const hora = (m.quando || '').replace('T', ' ').slice(11, 16) || '';
+      const dataFmt = (m.quando || '').slice(0, 10).split('-').reverse().join('/') || '';
+      const tick = m.lido ? ' ✓✓' : ' ✓';
+
+      let html;
+      if (tipo === 'SISTEMA') {
+        html = `<div class="mb-2 text-center">
+          <span class="inline-block px-3 py-1 rounded-full text-xs font-bold" style="background:rgba(100,116,139,.15);color:var(--text-secondary);">
+            ⚙️ ${escChat(m.mensagem||'')} • ${dataFmt} ${hora}
+          </span>
+        </div>`;
+      } else {
+        const bgColor = tipo === 'TI' ? 'rgba(14,165,233,.12)' : 'rgba(100,116,139,.1)';
+        const borderColor = tipo === 'TI' ? 'rgba(14,165,233,.25)' : 'rgba(100,116,139,.2)';
+        const icon = tipo === 'TI' ? '🔧' : '👤';
+        html = `<div class="mb-2 p-2 rounded-xl" style="background:${bgColor};border:1px solid ${borderColor};">
+          <div class="flex items-center gap-2 mb-1">
+            <span>${icon}</span>
+            <span class="font-bold text-xs" style="color:var(--text-primary);">${escChat(nome)}</span>
+            <span class="text-xs" style="color:var(--text-secondary);">${dataFmt} ${hora}${tick}</span>
+          </div>
+          <div class="text-sm" style="color:var(--text-primary);opacity:.9;">${escChat(m.mensagem||'')}</div>
+        </div>`;
+      }
+
+      timeline.push({ type: 'chat', quando: m.quando || '', html });
+    });
+
+    // Ordenar por data (mais recente primeiro)
+    timeline.sort((a,b) => {
+      const ta = a.quando || '';
+      const tb = b.quando || '';
+      return tb.localeCompare(ta);
+    });
+
+    if (!timeline.length) {
+      $('ti_histBox').innerHTML = '<div class="font-semibold" style="color:var(--text-secondary);">Sem histórico.</div>';
+    } else {
+      $('ti_histBox').innerHTML = timeline.map(t => t.html).join('<div class="h-px my-2" style="background:var(--border-color);opacity:.4"></div>');
+    }
     $('ti_histBox').classList.remove('hidden');
   }
 
@@ -1733,6 +2553,19 @@
     }, 10000);
   }
   
+  function parseAnyDate(s){
+    if (!s) return null;
+    if (s instanceof Date) return isNaN(s) ? null : s;
+    if (typeof s === 'number') return new Date(s);
+    if (typeof s !== 'string') return null;
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+    m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+  }
+
   function tvFormatTime(dateStr){
     if(!dateStr) return '—';
     const d = parseAnyDate(dateStr);
@@ -1751,7 +2584,7 @@
 
   function startTvRefresh(){
     if (tvTimer) clearInterval(tvTimer);
-    tvTimer = setInterval(tvLoad, 10000);
+    tvTimer = setInterval(tvLoad, 15000);
   }
 
   function stopTvRefresh(){
@@ -1763,7 +2596,7 @@
 
   async function tvLoad(){
     // Bypass cache para ter dados em tempo real
-    const pack = await api('ti_list', { limit: 500 }, true);
+    const pack = await api('ti_list', { limit: 200 }, true);
     const items = (pack && pack.items) ? pack.items : [];
     const keep = items.filter(x=>{
       const st = normalizeUpper(x.status);
@@ -1973,7 +2806,10 @@
     const fim = $('relFim').value;
     console.log('[relRun] Período:', inicio, 'até', fim);
     
-    const pack = await api('ti_report', { inicio, fim });
+    const [pack, maqPack] = await Promise.all([
+      api('ti_report', { inicio, fim }),
+      api('maq_stats', {})
+    ]);
     relLastPack = pack;
     console.log('[relRun] Resposta API:', pack);
 
@@ -2115,7 +2951,6 @@
     // Carregar estatísticas de máquinas por local
     try {
       console.log('[relRun] Carregando máquinas por local');
-      const maqPack = await api('maq_stats');
       console.log('[relRun] Resposta máquinas:', maqPack);
       
       const maqDiv = $('relMaquinas');
@@ -2280,29 +3115,15 @@
   }
 
   // ===== Ações Rápidas de Status =====
-  async function quickStatus(id, newStatus) {
+  async function quickStatus(id, newStatus, btn) {
+    if (btn && btn.getAttribute('aria-busy') === 'true') return;
     if (!confirm(`Alterar status do chamado ${id} para "${newStatus}"?`)) return;
+    if (btn) btn.setAttribute('aria-busy', 'true');
     
     try {
-      const det = await api('ti_get', { id });
-      if (!det || !det.ok) {
-        alert('Erro ao buscar chamado');
-        return;
-      }
-
-      const item = det.item || {};
       const payload = {
         id,
         status: newStatus,
-        prioridade: item.prioridade,
-        categoria: item.categoria,
-        unidade: item.unidade,
-        solicitante: item.solicitante,
-        contato: item.contato,
-        titulo: item.titulo,
-        descricao: item.descricao,
-        responsavel: item.responsavel || tecnicoAtual,
-        previsao: item.previsao,
         ultimaAcao: `Status alterado para ${newStatus} via ação rápida`
       };
 
@@ -2315,13 +3136,17 @@
       await loadList();
     } catch(e) {
       alert('Erro: ' + e.message);
+    } finally {
+      if (btn) btn.removeAttribute('aria-busy');
     }
   }
 
   // ===== Wire events =====
   document.addEventListener('click', (ev)=>{
+    if (ev.target.closest('button, a, input, select, textarea, label')) return;
     const tr = ev.target.closest('tr[data-id]');
-    if (tr) openChamado(tr.getAttribute('data-id'));
+    if (!tr) return;
+    openChamadoSafe(tr.getAttribute('data-id'));
   });
 
   document.addEventListener('DOMContentLoaded', async ()=>{
@@ -2377,7 +3202,6 @@
         $('m_unidade').value = '';
         $('m_solic').value = '';
         $('m_contato').value = '';
-        $('m_titulo').value = '';
         $('m_desc').value = '';
         $('m_resp').value = tecnicoAtual || '';
         $('m_prev').value = '';
@@ -2385,17 +3209,36 @@
 
         $('ti_histBox').classList.add('hidden');
         $('ti_histBox').innerHTML = '';
+        $('ti_chatWrap').classList.add('hidden');
+        closeChat();
         showModal($('ti_modal'), true);
       };
 
-      $('ti_mClose').onclick = ()=>showModal($('ti_modal'), false);
+      $('ti_mClose').onclick = ()=>{ closeChat(); showModal($('ti_modal'), false); };
       $('ti_mSave').onclick = ()=>saveChamado(!currentId);
       $('ti_mHist').onclick = loadHist;
+
+      // Máscara de telefone no contato
+      $('m_contato').addEventListener('input', ()=>{
+        const v = $('m_contato').value;
+        const d = String(v || '').replace(/\D/g,'').slice(0,11);
+        if (!d) { $('m_contato').value = ''; return; }
+        if (d.length <= 2) $('m_contato').value = `(${d}`;
+        else if (d.length <= 6) $('m_contato').value = `(${d.slice(0,2)}) ${d.slice(2)}`;
+        else if (d.length <= 10) $('m_contato').value = `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+        else $('m_contato').value = `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+      });
+
+      // Chat
+      $('ti_btnChat').onclick = toggleChat;
+      $('ti_btnChatClose').onclick = endChat;
+      $('ti_chatSend').onclick = sendChatMsg;
+      $('ti_chatInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChatMsg(); } });
 
       $('ti_tecClose').onclick = ()=>showModal($('ti_modalTec'), false);
       $('ti_modalTec').addEventListener('click',(e)=>{ if(e.target=== $('ti_modalTec')) showModal($('ti_modalTec'), false); });
 
-      $('ti_modal').addEventListener('click',(e)=>{ if(e.target=== $('ti_modal')) showModal($('ti_modal'), false); });
+      $('ti_modal').addEventListener('click',(e)=>{ if(e.target=== $('ti_modal')){ closeChat(); showModal($('ti_modal'), false); } });
     }
 
     if (VIEW === 'ti_tv'){
@@ -2870,6 +3713,581 @@
       alert('Erro: '+er.message);
     }
   }
+
+  // ===================================================
+  // ===== NOVAS FUNÇÕES: TOAST, SOM, FILE VIEWER =====
+  // ===================================================
+
+  // --- Variáveis de estado para notificações ---
+  let tiKnownIds = new Set();
+  let tiNewCount = 0;
+  let tiDashMuted = true; // Som mutado por padrão no dashboard
+  let tiLastUpdated = null;
+  let tiLastUpdTimer = null;
+
+  // --- Toast Notifications ---
+  function showToast(title, msg, type, duration) {
+    const container = $('ti-toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `ti-toast ti-toast-${type || 'info'}`;
+    const icon = type === 'new' ? '🚨' : type === 'ok' ? '✅' : 'ℹ️';
+    toast.innerHTML = `
+      <div class="ti-toast-icon">${icon}</div>
+      <div class="ti-toast-body">
+        <div class="ti-toast-title">${title}</div>
+        ${msg ? `<div class="ti-toast-msg">${msg}</div>` : ''}
+      </div>
+      <div class="ti-toast-close" onclick="this.parentElement.remove()">✕</div>
+    `;
+    container.appendChild(toast);
+    const ms = duration || (type === 'new' ? 8000 : 4000);
+    setTimeout(() => {
+      if (!toast.parentElement) return;
+      toast.style.animation = 'ti-toast-out 0.3s ease-in forwards';
+      setTimeout(() => toast.remove(), 300);
+    }, ms);
+  }
+
+  // --- Notification Badge ---
+  function updateNotifBadge() {
+    const badge = $('ti-notif-badge');
+    if (!badge) return;
+    if (tiNewCount > 0) {
+      badge.textContent = tiNewCount > 99 ? '99+' : String(tiNewCount);
+      badge.style.display = 'block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  function clearNotifBadge() {
+    tiNewCount = 0;
+    updateNotifBadge();
+  }
+
+  // --- Last Updated Indicator ---
+  function updateLastUpdated() {
+    const el = $('ti-last-upd');
+    if (!el || !tiLastUpdated) return;
+    const diff = Math.floor((Date.now() - tiLastUpdated.getTime()) / 1000);
+    if (diff < 8) {
+      el.className = 'ti-last-upd fresh';
+      el.innerHTML = '<span class="ti-last-upd-dot"></span> Atualizado agora';
+    } else if (diff < 60) {
+      el.className = 'ti-last-upd';
+      el.innerHTML = `<span class="ti-last-upd-dot"></span> ${diff}s atrás`;
+    } else {
+      el.className = 'ti-last-upd';
+      el.innerHTML = `<span class="ti-last-upd-dot"></span> ${Math.floor(diff/60)}m atrás`;
+    }
+  }
+
+  function startLastUpdTimer() {
+    if (tiLastUpdTimer) clearInterval(tiLastUpdTimer);
+    tiLastUpdTimer = setInterval(updateLastUpdated, 5000);
+  }
+
+  // --- Sound Notification (Dashboard) ---
+  function playDashNotifSound() {
+    if (tiDashMuted) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.6);
+    } catch(e) {}
+  }
+
+  // --- Enhanced loadList with new ticket detection ---
+  let _listDetectionRunning = false;
+  async function loadListWithDetection() {
+    if (_listDetectionRunning) return; // evitar chamadas sobrepostas
+    _listDetectionRunning = true;
+    $('ti_btnRefresh').setAttribute('aria-busy','true');
+    try {
+      const q = $('ti_q').value || '';
+      const status = $('ti_status').value || '';
+      const prio = $('ti_prio').value || '';
+      const unidade = $('ti_unidade').value || '';
+      // Usa cache normal — sem bypass
+      const pack = await api('ti_list', { q, status, prioridade: prio, unidade, limit: 300 });
+      const items = (pack && pack.items) ? pack.items : [];
+      kpiFromItems(items);
+      $('ti_info').textContent = `${items.length} chamados`;
+
+      // Detectar novos chamados
+      const newIds = [];
+      if (tiKnownIds.size > 0) {
+        items.forEach(x => {
+          if (!tiKnownIds.has(x.id)) newIds.push(x);
+        });
+      }
+      // Atualizar IDs conhecidos
+      tiKnownIds = new Set(items.map(x => x.id));
+
+      // Notificar novos chamados
+      if (newIds.length > 0) {
+        tiNewCount += newIds.length;
+        updateNotifBadge();
+        newIds.slice(0, 3).forEach(item => {
+          const prio = normalizeUpper(item.prioridade || 'NORMAL');
+          const type = prio === 'URGENTE' ? 'new' : 'info';
+          showToast(
+            `🚨 Novo Chamado${prio === 'URGENTE' ? ' — URGENTE!' : ''}`,
+            `${item.unidade || 'Local'} • ${item.solicitante || 'Solicitante'}`,
+            type
+          );
+        });
+        playDashNotifSound();
+      }
+
+      // Renderizar com highlight para novos
+      const newIdSet = new Set(newIds.map(x => x.id));
+      $('ti_tbody').innerHTML = items.map(item => {
+        const isNew = newIdSet.has(item.id);
+        const badge = (txt) => {
+          const t = normalizeUpper(txt);
+          if (t==='ABERTO') return `<span class="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-200 font-bold">🟡 ${txt}</span>`;
+          if (t==='EM ANDAMENTO') return `<span class="px-2 py-1 rounded-lg bg-sky-500/20 text-sky-200 font-bold">🔵 ${txt}</span>`;
+          if (t==='PENDENTE'||t==='AGUARDANDO') return `<span class="px-2 py-1 rounded-lg bg-violet-500/20 text-violet-200 font-bold">🟣 ${txt}</span>`;
+          if (t==='RESOLVIDO'||t==='CONCLUIDO'||t==='CONCLUÍDO') return `<span class="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-200 font-bold">✅ ${txt}</span>`;
+          return `<span class="px-2 py-1 rounded-lg bg-slate-700/50 text-slate-200 font-bold">${txt||'—'}</span>`;
+        };
+        const quickActions = `
+          <div class="flex gap-1" onclick="event.stopPropagation()">
+            <button onclick="quickStatus('${item.id}', 'EM ANDAMENTO', this)" title="Colocar em andamento" class="px-2 py-1 text-xs rounded bg-sky-600/30 hover:bg-sky-600/50">🔵</button>
+            <button onclick="quickStatus('${item.id}', 'RESOLVIDO', this)" title="Marcar como resolvido" class="px-2 py-1 text-xs rounded bg-emerald-600/30 hover:bg-emerald-600/50">✅</button>
+          </div>
+        `;
+        return `
+          <tr class="hover:bg-slate-900/40 cursor-pointer ${isNew ? 'ti-row-new' : ''}" data-id="${item.id}">
+            <td class="px-4 py-3 font-extrabold text-slate-100">
+              ${item.id}
+              ${isNew ? '<span class="ml-1 px-1.5 py-0.5 text-xs font-black bg-red-500 text-white rounded-full align-middle">NEW</span>' : ''}
+            </td>
+            <td class="px-4 py-3">${badge(item.status)}</td>
+            <td class="px-4 py-3"><span class="font-bold">${item.prioridade||'—'}</span></td>
+            <td class="px-4 py-3">${item.unidade||'—'}</td>
+            <td class="px-4 py-3">${item.solicitante||'—'}</td>
+            <td class="px-4 py-3">${item.responsavel||'—'}</td>
+            <td class="px-4 py-3 text-slate-300">${(item.atualizadoEm||'').toString().replace('T',' ').slice(0,16)}</td>
+            <td class="px-4 py-3">${quickActions}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // Atualizar last updated
+      tiLastUpdated = new Date();
+      updateLastUpdated();
+
+    } finally {
+      $('ti_btnRefresh').removeAttribute('aria-busy');
+      _listDetectionRunning = false;
+    }
+  }
+
+  // --- Auto-refresh com detecção ---
+  function startAutoRefresh(intervalMs) {
+    if (autoTimer) clearInterval(autoTimer);
+    autoTimer = setInterval(loadListWithDetection, intervalMs || 30000);
+    $('ti_btnAuto').textContent = '⏱️ Auto: ON';
+    $('ti_btnAuto').classList.add('bg-emerald-500/30');
+    $('ti_btnAuto').classList.remove('bg-slate-700');
+  }
+
+  function stopAutoRefresh() {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    $('ti_btnAuto').textContent = '⏱️ Auto: OFF';
+    $('ti_btnAuto').classList.remove('bg-emerald-500/30');
+    $('ti_btnAuto').classList.add('bg-slate-700');
+  }
+
+  // Override toggleAuto — 30s de intervalo
+  async function toggleAuto(){
+    if (!!autoTimer) {
+      stopAutoRefresh();
+    } else {
+      startAutoRefresh(30000);
+      await loadListWithDetection();
+    }
+  }
+
+  // Override startTvRefresh — 30s
+  function startTvRefresh(){
+    if (tvTimer) clearInterval(tvTimer);
+    tvTimer = setInterval(tvLoad, 30000);
+  }
+
+  // --- File Viewer ---
+  let fvFiles = [];
+  let fvIdx = 0;
+
+  function openFileViewer(files, startIdx) {
+    fvFiles = Array.isArray(files) ? files : [];
+    fvIdx = startIdx || 0;
+    if (!fvFiles.length) return;
+    renderFileViewer();
+    $('ti-fileviewer-modal').classList.add('open');
+    document.addEventListener('keydown', fvEscHandler);
+  }
+
+  function fvEscHandler(e) {
+    if (e.key === 'Escape') closeFileViewer();
+  }
+
+  function closeFileViewer() {
+    $('ti-fileviewer-modal').classList.remove('open');
+    const body = $('ti-fv-body');
+    if (body) body.innerHTML = '';
+    document.removeEventListener('keydown', fvEscHandler);
+  }
+
+  function fvNav(dir) {
+    fvIdx = Math.max(0, Math.min(fvFiles.length - 1, fvIdx + dir));
+    renderFileViewer();
+  }
+
+  function renderFileViewer() {
+    if (!fvFiles.length) return;
+    const file = fvFiles[fvIdx];
+    const titleEl = $('ti-fv-title');
+    const bodyEl = $('ti-fv-body');
+    const openEl = $('ti-fv-open');
+    const navInfo = $('ti-fv-nav-info');
+    const prevBtn = $('ti-fv-prev');
+    const nextBtn = $('ti-fv-next');
+
+    if (titleEl) titleEl.textContent = file.nome || ('Arquivo ' + (fvIdx + 1));
+    if (openEl) openEl.href = file.url || '#';
+    if (navInfo) navInfo.textContent = `${fvIdx + 1} / ${fvFiles.length}`;
+    if (prevBtn) prevBtn.disabled = fvIdx === 0;
+    if (nextBtn) nextBtn.disabled = fvIdx === fvFiles.length - 1;
+
+    if (!bodyEl) return;
+    bodyEl.innerHTML = '';
+
+    if (!file || !file.url) {
+      bodyEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:60px;font-size:0.9rem">Sem URL para visualizar</div>';
+      return;
+    }
+
+    const tipo = ti_guessAnexoType(file.url, file.nome);
+    const driveId = ti_getDriveFileId(file.url);
+
+    if (tipo === 'image') {
+      const img = document.createElement('img');
+      img.alt = file.nome || 'Imagem';
+      img.src = driveId
+        ? ('https://drive.google.com/thumbnail?id=' + encodeURIComponent(driveId) + '&sz=w1600')
+        : file.url;
+      img.onerror = () => { img.src = file.url; };
+      bodyEl.appendChild(img);
+      return;
+    }
+
+    if (tipo === 'video') {
+      if (driveId) {
+        const iframe = document.createElement('iframe');
+        iframe.src = 'https://drive.google.com/file/d/' + encodeURIComponent(driveId) + '/preview';
+        iframe.setAttribute('allow', 'autoplay');
+        bodyEl.appendChild(iframe);
+      } else {
+        const video = document.createElement('video');
+        video.controls = true;
+        video.src = file.url;
+        bodyEl.appendChild(video);
+      }
+      return;
+    }
+
+    // PDF ou Drive
+    const iframe = document.createElement('iframe');
+    iframe.src = driveId
+      ? ('https://drive.google.com/file/d/' + encodeURIComponent(driveId) + '/preview')
+      : file.url;
+    bodyEl.appendChild(iframe);
+  }
+
+  // Fechar file viewer clicando fora
+  document.addEventListener('click', (e) => {
+    const modal = $('ti-fileviewer-modal');
+    if (modal && e.target === modal) closeFileViewer();
+  });
+
+  // ===================================================
+  // ===== GLOBAL DOUBLE-CLICK PREVENTION =====
+  // ===================================================
+  (function() {
+    const overlay = document.getElementById('ti-global-overlay');
+    const spinner = document.getElementById('ti-global-spinner');
+    let busyTimer = null;
+
+    // Mostrar overlay de loading global
+    function setGlobalBusy(on, label) {
+      if (on) {
+        if (overlay) overlay.classList.add('active');
+        if (spinner) {
+          spinner.classList.add('active');
+          spinner.childNodes[spinner.childNodes.length - 1].textContent = label || ' Processando…';
+        }
+        if (busyTimer) clearTimeout(busyTimer);
+        // Segurança: remover após 15s no máximo
+        busyTimer = setTimeout(() => setGlobalBusy(false), 15000);
+      } else {
+        if (overlay) overlay.classList.remove('active');
+        if (spinner) spinner.classList.remove('active');
+        if (busyTimer) { clearTimeout(busyTimer); busyTimer = null; }
+      }
+    }
+
+    // Interceptar cliques em botões para prevenir duplo clique
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      // Ignorar botões já em estado busy
+      if (btn.getAttribute('aria-busy') === 'true' || btn.disabled || btn.getAttribute('data-ti-clicking') === '1') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+
+      // Marcar como clicado por 800ms
+      btn.setAttribute('data-ti-clicking', '1');
+      setTimeout(() => btn.removeAttribute('data-ti-clicking'), 800);
+    }, true);
+
+    // Expor função global para uso nas funções async
+    window.tiSetBusy = setGlobalBusy;
+  })();
+
+  // ===================================================
+  // ===== FIX: openChamado com detecção robusta de arquivos =====
+  // ===================================================
+  // Sobrescreve openChamado para tentar múltiplos nomes de campo
+  const _origOpenChamado = openChamado;
+  openChamado = async function(id) {
+    currentId = id;
+    $('ti_histBox').classList.add('hidden');
+    $('ti_histBox').innerHTML = '';
+
+    const det = await api('ti_get', { id });
+    if (!det || !det.ok) return alert(det && det.msg ? det.msg : 'Não foi possível abrir.');
+
+    const it = det.item || { id };
+
+    $('ti_mId').textContent = it.id || id;
+    $('ti_mTitle').textContent = `Chamado ${it.id || id}`;
+    $('ti_mSub').textContent = `${it.unidade||'—'} • ${it.solicitante||'—'}`;
+
+    $('m_status').value = it.status || 'ABERTO';
+    $('m_prio').value = it.prioridade || 'NORMAL';
+    $('m_cat').value = it.categoria || '';
+    $('m_unidade').value = it.unidade || '';
+    $('m_solic').value = it.solicitante || '';
+    $('m_contato').value = it.contato || '';
+    $('m_desc').value = it.descricao || '';
+    $('m_resp').value = it.responsavel || tecnicoAtual || '';
+    $('m_prev').value = it.previsao || '';
+    $('m_last').value = it.ultimaAcao || '';
+
+    // ===== DETECÇÃO ROBUSTA DE ARQUIVOS =====
+    // Tenta múltiplos nomes de campo que o backend pode usar
+    let links = [];
+    let nomes = [];
+
+    if (Array.isArray(it.anexoLinks) && it.anexoLinks.length) {
+      links = it.anexoLinks;
+      nomes = Array.isArray(it.anexoNomes) ? it.anexoNomes : [];
+    } else if (Array.isArray(it.files) && it.files.length) {
+      // Campo 'files' como array de objetos {url, nome} ou strings
+      it.files.forEach(f => {
+        if (typeof f === 'string') { links.push(f); nomes.push(''); }
+        else if (f && f.url) { links.push(f.url); nomes.push(f.nome || f.name || ''); }
+      });
+    } else if (Array.isArray(it.links) && it.links.length) {
+      links = it.links;
+      nomes = Array.isArray(it.nomes) ? it.nomes : [];
+    } else if (typeof it.anexoLinks === 'string' && it.anexoLinks.trim()) {
+      // String separada por vírgula ou newline
+      links = it.anexoLinks.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+      nomes = typeof it.anexoNomes === 'string' ? it.anexoNomes.split(/[\n,]/).map(s => s.trim()) : [];
+    }
+
+    const renderAnexos = (linksSrc, nomesSrc) => {
+      const linksOk = Array.isArray(linksSrc) ? linksSrc : [];
+      const nomesOk = Array.isArray(nomesSrc) ? nomesSrc : [];
+      $('m_anexosWrap').classList.remove('hidden');
+      const hintEl = $('m_anexosHint');
+      const listEl = $('m_anexosList');
+      listEl.innerHTML = '';
+
+      if (!linksOk.length) {
+        if (hintEl) hintEl.textContent = 'Nenhum anexo encontrado na planilha. Clique em “Buscar no Drive”.';
+        $('m_anexoPreviewWrap').classList.add('hidden');
+        $('m_anexoPreviewBody').innerHTML = '';
+        return;
+      }
+
+      const anexos = linksOk.map((url, i) => ({
+        url: String(url || '').trim(),
+        nome: String(nomesOk[i] || ('Arquivo ' + (i + 1)))
+      })).filter(a => !!a.url);
+
+      if (hintEl) hintEl.textContent = anexos.length + ' arquivo(s) encontrado(s).';
+      if (!anexos.length) {
+        $('m_anexoPreviewWrap').classList.add('hidden');
+        $('m_anexoPreviewBody').innerHTML = '';
+        return;
+      }
+
+      anexos.forEach((anexo, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 px-3 py-2 rounded-lg mb-1';
+        row.style.backgroundColor = 'var(--bg-card)';
+        row.style.border = '1px solid var(--border-color)';
+
+        const left = document.createElement('div');
+        left.className = 'text-sm font-semibold truncate flex-1';
+        left.style.cursor = 'pointer';
+        left.title = 'Clique para visualizar em tela cheia';
+        left.textContent = '📎 ' + anexo.nome;
+        left.onclick = () => openFileViewer(anexos, idx);
+
+        const right = document.createElement('div');
+        right.className = 'flex items-center gap-2 flex-shrink-0';
+
+        const btnFull = document.createElement('button');
+        btnFull.type = 'button';
+        btnFull.className = 'px-2 py-1 rounded-lg text-xs font-bold';
+        btnFull.style.background = 'linear-gradient(135deg,#0ea5e9,#2563eb)';
+        btnFull.style.color = '#fff';
+        btnFull.style.border = 'none';
+        btnFull.title = 'Abrir em tela cheia';
+        btnFull.textContent = '🔍 Tela cheia';
+        btnFull.onclick = () => openFileViewer(anexos, idx);
+
+        const btnPreview = document.createElement('button');
+        btnPreview.type = 'button';
+        btnPreview.className = 'px-2 py-1 rounded-lg text-xs font-bold';
+        btnPreview.style.backgroundColor = 'var(--bg-secondary)';
+        btnPreview.style.border = '1px solid var(--border-color)';
+        btnPreview.style.color = 'var(--text-primary)';
+        btnPreview.textContent = '👁️ Preview';
+        btnPreview.onclick = () => ti_renderAnexoPreview(anexo, idx + 1);
+
+        const linkOpen = document.createElement('a');
+        linkOpen.href = anexo.url;
+        linkOpen.target = '_blank';
+        linkOpen.rel = 'noopener';
+        linkOpen.className = 'px-2 py-1 rounded-lg text-xs font-bold underline';
+        linkOpen.style.color = 'var(--text-secondary)';
+        linkOpen.textContent = 'Abrir';
+
+        right.appendChild(btnFull);
+        right.appendChild(btnPreview);
+        right.appendChild(linkOpen);
+        row.appendChild(left);
+        row.appendChild(right);
+        listEl.appendChild(row);
+      });
+
+      ti_renderAnexoPreview(anexos[0], 1);
+    };
+
+    const fetchDriveAnexos = async () => {
+      if (!currentId) return;
+      const btn = $('m_anexosSearch');
+      const hintEl = $('m_anexosHint');
+      if (btn) btn.setAttribute('aria-busy', 'true');
+      if (hintEl) hintEl.textContent = 'Buscando arquivos no Drive...';
+      try {
+        const folderId = String((it && it.anexoFolderId) || '').trim();
+        const pack = await withTimeout(
+          api('ti_drive_anexos', { id: currentId, folderId, limit: 20 }, true),
+          9000,
+          'Busca de anexos demorou demais.'
+        );
+        const l = Array.isArray(pack && pack.anexoLinks) ? pack.anexoLinks : [];
+        const n = Array.isArray(pack && pack.anexoNomes) ? pack.anexoNomes : [];
+        renderAnexos(l, n);
+        if (!l.length && hintEl) {
+          hintEl.textContent = 'Nenhum arquivo encontrado no Drive para este protocolo.';
+        }
+      } catch(_){
+        if (hintEl) hintEl.textContent = 'Busca de anexos expirou. Clique novamente para tentar.';
+      } finally {
+        if (btn) btn.removeAttribute('aria-busy');
+      }
+    };
+
+    if ($('m_anexosSearch')) {
+      $('m_anexosSearch').onclick = fetchDriveAnexos;
+    }
+
+    if (links.length) {
+      const anexos = links.map((url, i) => ({
+        url: String(url || '').trim(),
+        nome: String(nomes[i] || ('Arquivo ' + (i + 1)))
+      })).filter(a => !!a.url);
+
+      if (anexos.length) {
+        renderAnexos(links, nomes);
+      } else {
+        renderAnexos([], []);
+        fetchDriveAnexos();
+      }
+    } else {
+      renderAnexos([], []);
+      fetchDriveAnexos();
+    }
+
+    showModal($('ti_modal'), true);
+    $('ti_chatWrap').classList.remove('hidden');
+    closeChat();
+    preloadChatCount();
+  };
+
+  // Iniciar apenas o timer de "última atualização" — auto-refresh NÃO inicia sozinho
+  document.addEventListener('DOMContentLoaded', () => {
+    if (VIEW === 'ti') {
+      setTimeout(() => {
+        startLastUpdTimer();
+      }, 2000);
+    }
+  });
+
 </script>
+
+  <!-- ===== TOAST CONTAINER ===== -->
+  <div id="ti-toast-container"></div>
+
+  <!-- ===== FILE VIEWER MODAL ===== -->
+  <div id="ti-fileviewer-modal">
+    <div class="ti-fv-wrap">
+      <div class="ti-fv-header">
+        <div class="ti-fv-title" id="ti-fv-title">Arquivo</div>
+        <div class="ti-fv-actions">
+          <a id="ti-fv-open" href="#" target="_blank" rel="noopener" class="ti-fv-btn">🔗 Abrir em nova aba</a>
+          <button class="ti-fv-btn" onclick="closeFileViewer()">✕ Fechar</button>
+        </div>
+      </div>
+      <div class="ti-fv-body" id="ti-fv-body"></div>
+      <div class="ti-fv-nav">
+        <button class="ti-fv-nav-btn" id="ti-fv-prev" onclick="fvNav(-1)">← Anterior</button>
+        <span class="ti-fv-nav-info" id="ti-fv-nav-info">1 / 1</span>
+        <button class="ti-fv-nav-btn" id="ti-fv-next" onclick="fvNav(1)">Próximo →</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
