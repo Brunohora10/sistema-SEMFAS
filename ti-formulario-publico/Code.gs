@@ -1,12 +1,12 @@
 const FORM_APP_TITLE = 'Portal de Chamados TI';
-const TARGET_BASE_URL = 'https://script.google.com/macros/s/AKfycbzZ_15wI_5o8X91vBeElUELLyMe3SDrNKWzjwLmwUS-zYZkj5ePf1NLe92qyOWFZOIe9Q/exec';
+const TARGET_BASE_URL = '';
 const PUBLIC_TOKEN = '';
 const ENABLE_LOCAL_FALLBACK = true;
 const API_BLOCK_CACHE_KEY = 'TI_API_BLOCKED';
 const API_BLOCK_CACHE_TTL = 300; // 5 min
 
-const PLANILHA_ID = '1_jNjcdd27uAqJ-TpfMFvPIAYVAmhZKK6Piyc_DOFjhY';
-const FOLDER_PDFS_ID = '13fA080P3J-9qxWNgcRUvCVOt8sTwYDcY';
+const PLANILHA_ID = '';
+const FOLDER_PDFS_ID = '';
 const TZ = 'America/Sao_Paulo';
 const TI_SHEET_NAME = 'Chamados';
 const TI_CHAT_SHEET = 'Chamados_Chat';
