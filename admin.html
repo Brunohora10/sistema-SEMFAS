@@ -914,10 +914,40 @@
       }
 
       google.script.run
-        .withSuccessHandler(function(html){
-          el('conteudoHistorico').innerHTML = html || '<div class="text-center text-gray-500 py-4">Nenhum registro encontrado.</div>';
+        .withSuccessHandler(function(res){
+          const items = (res && res.registros) ? res.registros : [];
+          if (!items.length) {
+            el('conteudoHistorico').innerHTML = '<div class="text-center text-gray-500 py-4">Nenhum registro encontrado.</div>';
+            return;
+          }
+          let html = '<table class="w-full text-sm"><thead><tr class="border-b">'
+            + '<th class="px-2 py-1 text-left">Data</th>'
+            + '<th class="px-2 py-1 text-left">Benefício</th>'
+            + '<th class="px-2 py-1 text-left">Unidade</th>'
+            + '<th class="px-2 py-1 text-left">Status</th>'
+            + '<th class="px-2 py-1 text-left">Entrega</th>'
+            + '<th class="px-2 py-1 text-left">PDF</th>'
+            + '</tr></thead><tbody>';
+          items.forEach(r => {
+            const statusColor = r.status === 'ENTREGUE' ? 'text-green-600' : (r.status === 'PENDENTE' ? 'text-yellow-600' : 'text-gray-600');
+            const pdfLink = r.pdf ? `<a href="${r.pdf}" target="_blank" class="text-blue-600 underline">PDF</a>` : '—';
+            const entrega = r.entregue_em ? `${r.entregue_em}` + (r.entregue_por ? ` por ${r.entregue_por}` : '') : '—';
+            html += `<tr class="border-b hover:bg-gray-50">
+              <td class="px-2 py-1">${r.data || '—'}</td>
+              <td class="px-2 py-1 font-medium">${r.beneficio || '—'}</td>
+              <td class="px-2 py-1">${r.unidade || '—'}</td>
+              <td class="px-2 py-1 font-semibold ${statusColor}">${r.status || '—'}</td>
+              <td class="px-2 py-1">${entrega}</td>
+              <td class="px-2 py-1">${pdfLink}</td>
+            </tr>`;
+          });
+          html += '</tbody></table>';
+          el('conteudoHistorico').innerHTML = html;
         })
-        .getHistoricoBeneficiario(cpf);
+        .withFailureHandler(function(err){
+          el('conteudoHistorico').innerHTML = '<div class="text-center text-red-500 py-4">Erro ao carregar: ' + (err && err.message ? err.message : 'erro desconhecido') + '</div>';
+        })
+        .historicoPorCPF(cpf);
     }
 
     function atualizarGauge(valor){
