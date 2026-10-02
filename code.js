@@ -1,5 +1,41 @@
 
 const PLANILHA_ID    = '';
+const PLANILHA_DADOS_ID = '';
+const DATA_SOURCE_LEGADO = 'LEGADO';
+const DATA_SOURCE_NOVO   = 'NOVO';
+const ROWREF_NOVO_OFFSET = 20000000;
+const SETORES_BANCO_FOLDER_ID = ''; // pasta "BANCO DE DADOS SETORES"
+const SETOR_ROW_BASE   = 30000000; // rowRefs de setores começam aqui
+const SETOR_ROW_OFFSET = 10000000; // 10 milhões de linhas por setor
+
+// ── IDs fixos das planilhas de cada setor (chave = canonicalSectorKey do nome) ──
+const SETORES_BANCO_IDS = {
+  'cram':               '',
+  'crasangelamaria':    '',
+  'crasdrfranklin':     '',
+  'crasmariajose':      '',
+  'crasprofmarialuiza': '',
+  'craszildaarns':      '',
+  'creasleoneolbrizola':'',
+  'creasleonelbrizola': '',
+  'creasmarcosfreire':  '',
+  'sede':               '',
+  'ti':                 ''
+};
+// Ordem fixa para encodeRowRef_/decodeRowRef_ (índice SETOR_0, SETOR_1, ...)
+const SETORES_BANCO_ORDER = [
+  '',  // 0 CRAM
+  '',  // 1 CRAS ANGELA MARIA
+  '',  // 2 CRAS DR. FRANKLIN
+  '',  // 3 CRAS MARIA JOSE
+  '',  // 4 CRAS PROF MARIA LUIZA
+  '',  // 5 CRAS ZILDA ARNS
+  '',  // 6 CREAS LEONEL BRIZOLA
+  '',  // 7 CREAS MARCOS FREIRE
+  '',  // 8 SEDE
+  ''   // 9 TI
+];
+
 const ID_TEMPLATE    = '';
 const FOLDER_PDFS_ID = '';
 const TZ             = 'America/Sao_Paulo';
@@ -246,6 +282,10 @@ function apiDispatch_(e){
       case 'maq_stats':
       case 'maq_estatisticas':
         return __json_(maq_estatisticasPorLocal());
+
+      // ===== SETORES BANCO =====
+      case 'setup_setores_banco':
+        return __json_(setupSetoresBancoDados());
 
       // ===== fallback =====
       default:
@@ -709,14 +749,159 @@ function insertSignatureImageAtPlaceholder_(body, placeholderKey, blob) {
  * DESCOBERTA AUTOMÁTICA
  ************************/
 function getSheet_(name){
-  return SpreadsheetApp.openById(PLANILHA_ID).getSheetByName(name);
+  return getDataSpreadsheet_().getSheetByName(name);
 }
 
-function autoDetectDataSheet_(){
-  const ss = SpreadsheetApp.openById(PLANILHA_ID);
+function encodeRowRef_(source, row){
+  const n = Number(row || 0);
+  if (!n || n < 1) return 0;
+  if (source === DATA_SOURCE_NOVO) return ROWREF_NOVO_OFFSET + n;
+  // SETOR_0, SETOR_1, etc.
+  const m = String(source || '').match(/^SETOR_(\d+)$/);
+  if (m) return SETOR_ROW_BASE + Number(m[1]) * SETOR_ROW_OFFSET + n;
+  return n; // LEGADO
+}
 
-  const pref = ss.getSheetByName(RESPOSTAS_SHEET_NAME);
-  if (pref && pref.getLastRow() >= 2) return pref;
+function decodeRowRef_(rowRef){
+  const n = Number(rowRef || 0);
+  if (!n || n < 1) return { source: DATA_SOURCE_LEGADO, row: 0 };
+  if (n >= SETOR_ROW_BASE) {
+    const idx = Math.floor((n - SETOR_ROW_BASE) / SETOR_ROW_OFFSET);
+    const row = n - SETOR_ROW_BASE - idx * SETOR_ROW_OFFSET;
+    return { source: 'SETOR_' + idx, row };
+  }
+  if (n >= ROWREF_NOVO_OFFSET) {
+    return { source: DATA_SOURCE_NOVO, row: n - ROWREF_NOVO_OFFSET };
+  }
+  return { source: DATA_SOURCE_LEGADO, row: n };
+}
+
+function getLegacySpreadsheet_(){
+  return SpreadsheetApp.openById(PLANILHA_ID);
+}
+
+function getDataSources_(){
+  const out = [{ source: DATA_SOURCE_LEGADO, ss: getLegacySpreadsheet_() }];
+  const dataId = getDataSpreadsheetId_();
+  if (dataId && dataId !== PLANILHA_ID) {
+    out.push({ source: DATA_SOURCE_NOVO, ss: SpreadsheetApp.openById(dataId) });
+  }
+  // Inclui planilhas individuais dos setores
+  const seenIds = new Set(out.map(o => o.ss.getId()));
+  getAllSetorDataSources_().forEach(src => {
+    if (!seenIds.has(src.ss.getId())) {
+      out.push(src);
+      seenIds.add(src.ss.getId());
+    }
+  });
+  return out;
+}
+
+function getDataSpreadsheetId_(){
+  try {
+    const p = PropertiesService.getScriptProperties().getProperty('PLANILHA_DADOS_ID');
+    if (p && String(p).trim()) return String(p).trim();
+  } catch (_){ }
+  return PLANILHA_DADOS_ID || PLANILHA_ID;
+}
+
+function getDataSpreadsheet_(){
+  return SpreadsheetApp.openById(getDataSpreadsheetId_());
+}
+
+/************************
+ * SETOR — banco de dados por setor
+ ************************/
+/** Retorna o spreadsheet do setor usando o mapa fixo com prefix-match */
+function getSetorSpreadsheet_(setorLabel) {
+  const key = canonicalSectorKey_(setorLabel);
+  if (!key) return null;
+
+  // 1) Match exato
+  if (SETORES_BANCO_IDS[key]) {
+    try { return SpreadsheetApp.openById(SETORES_BANCO_IDS[key]); } catch(_) {}
+  }
+
+  // 2) Prefix-match bidirecional (ex: "crasprofmarialuizamarcosfreirei" → "crasprofmarialuiza")
+  let bestKey = null, bestLen = 0;
+  for (const k in SETORES_BANCO_IDS) {
+    if (key.startsWith(k) || k.startsWith(key)) {
+      if (k.length > bestLen) { bestLen = k.length; bestKey = k; }
+    }
+  }
+  if (bestKey) {
+    try { return SpreadsheetApp.openById(SETORES_BANCO_IDS[bestKey]); } catch(_) {}
+  }
+
+  return null;
+}
+
+/** Retorna o spreadsheet de um setor pelo índice do array SETORES_BANCO_ORDER */
+function getSetorSpreadsheetByIndex_(idx) {
+  if (idx < 0 || idx >= SETORES_BANCO_ORDER.length) return null;
+  try { return SpreadsheetApp.openById(SETORES_BANCO_ORDER[idx]); } catch(_) { return null; }
+}
+
+/** Retorna todas as fontes de dados dos setores (com cache em memória por execução) */
+var __SETOR_SS_CACHE = null;
+function getAllSetorDataSources_() {
+  if (__SETOR_SS_CACHE) return __SETOR_SS_CACHE;
+  const sources = [];
+  const seen = new Set();
+  SETORES_BANCO_ORDER.forEach((id, i) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    try {
+      const ss = SpreadsheetApp.openById(id);
+      sources.push({ source: 'SETOR_' + i, ss });
+    } catch(e) {
+      Logger.log('[SETOR] Falha ao abrir planilha índice ' + i + ' (' + id + '): ' + e.message);
+    }
+  });
+  __SETOR_SS_CACHE = sources;
+  return sources;
+}
+
+/**
+ * Setup: garante aba Respostas em cada planilha de setor e retorna diagnóstico.
+ * Chame via Apps Script → Executar → setupSetoresBancoDados
+ */
+function setupSetoresBancoDados() {
+  const results = [];
+  const seen = new Set();
+  SETORES_BANCO_ORDER.forEach((id, i) => {
+    if (seen.has(id)) { results.push({ idx: i, id, status: 'duplicata' }); return; }
+    seen.add(id);
+    try {
+      const ss = SpreadsheetApp.openById(id);
+      autoDetectDataSheet_(ss, true); // garante aba Respostas com cabeçalho
+      results.push({ idx: i, id, nome: ss.getName(), url: ss.getUrl(), status: 'ok' });
+    } catch(e) {
+      results.push({ idx: i, id, status: 'erro', error: e.message });
+    }
+  });
+  return { ok: true, total: results.length, setores: results };
+}
+// ─────────────────────────────────────────────────────────────
+
+function autoDetectDataSheet_(ssOpt, allowCreate){
+  const ss = ssOpt || getDataSpreadsheet_();
+  const canCreate = allowCreate !== false;
+
+  let pref = ss.getSheetByName(RESPOSTAS_SHEET_NAME);
+  if (!pref && canCreate) {
+    pref = ss.insertSheet(RESPOSTAS_SHEET_NAME);
+    try {
+      const origem = SpreadsheetApp.openById(PLANILHA_ID).getSheetByName(RESPOSTAS_SHEET_NAME);
+      if (origem && origem.getLastColumn() > 0) {
+        const hdr = origem.getRange(1, 1, 1, origem.getLastColumn()).getValues();
+        pref.getRange(1, 1, 1, hdr[0].length).setValues(hdr);
+      } else {
+        pref.appendRow(['DATA DE CADASTRO', 'VIA DE ENTRADA', 'DEMANDA APRESENTADA', 'DATA DA SOLICITAÇÃO', 'NOME DO BENEFICIÁRIO', 'DATA DE NASCIMENTO DO BENEFICIÁRIO', 'ENDEREÇO']);
+      }
+    } catch (_){ }
+  }
+  if (pref && pref.getLastRow() >= 1) return pref;
 
   const sheets = ss.getSheets();
   let best = null, bestScore = -1;
@@ -772,7 +957,11 @@ function autoDetectDataSheet_(){
     if (score > bestScore){ best = sh; bestScore = score; }
   });
 
-  if (!best) throw new Error('Nenhuma aba de dados compatível encontrada.');
+  if (!best) {
+    if (canCreate && pref) return pref;
+    if (canCreate) throw new Error('Nenhuma aba de dados compatível encontrada.');
+    return null;
+  }
   return best;
 }
 
@@ -847,12 +1036,14 @@ function ensureDocumentosColumn_(sheet) {
   return ensureColumn_(sheet, 'Documentos');
 }
 
-function getRespostasIndexMap_(){
-  const sh = autoDetectDataSheet_();
+function buildRespostasIndexMap_(sh, allowCreate){
+  if (!sh) return null;
 
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
+  if (lastCol < 1) return null;
   const headers = sh.getRange(1,1,1,lastCol).getValues()[0] || [];
+  const canCreate = allowCreate !== false;
 
   const idx = {
     unidade:   findColIdx_(headers,'via de entrada','unidade','unidade / setor','setor','cras','creas','cram','unidade/setor','setor/unidade','unidade/setor (cras/creas)'),
@@ -863,17 +1054,18 @@ function getRespostasIndexMap_(){
     status:    findColIdx_(headers,'status','situação','situacao'),
     pdf:       findColIdx_(headers,'pdf','link do pdf','link','arquivo','drive','url pdf','arquivo pdf'),
     docs:      findColIdx_(headers,'documentos','docs','anexos','arquivos anexos','documentos/anexos'),
-    entregueFlag: -1
+    entregueFlag: findColIdx_(headers, ENTREGUE_HEADER, 'entregue')
   };
 
   if (idx.cpf  < 0) idx.cpf  = guessCpfColumn_(sh, 2, Math.max(2,lastRow), lastCol);
   if (idx.data < 0) idx.data = guessDateColumn_(sh, 2, Math.max(2,lastRow), lastCol);
 
-  if (idx.status < 0) idx.status = ensureColumn_(sh, 'Status');
-  idx.entregueFlag = ensureColumn_(sh, ENTREGUE_HEADER);
-  idx.docs = idx.docs >= 0 ? idx.docs : ensureDocumentosColumn_(sh);
+  if (canCreate) {
+    if (idx.status < 0) idx.status = ensureColumn_(sh, 'Status');
+    idx.entregueFlag = idx.entregueFlag >= 0 ? idx.entregueFlag : ensureColumn_(sh, ENTREGUE_HEADER);
+    idx.docs = idx.docs >= 0 ? idx.docs : ensureDocumentosColumn_(sh);
+  }
 
-  // fallback (se planilha for “estranha”)
   if (idx.unidade  < 0) idx.unidade   = 1;
   if (idx.beneficio< 0) idx.beneficio = 2;
   if (idx.data     < 0) idx.data      = 3;
@@ -881,6 +1073,65 @@ function getRespostasIndexMap_(){
   if (idx.cpf      < 0) idx.cpf       = 12;
 
   return { sh, headers, idx };
+}
+
+function getRespostasIndexMapBySource_(source, allowCreate){
+  const src = String(source || DATA_SOURCE_NOVO).toUpperCase();
+  let ss;
+
+  if (src === DATA_SOURCE_LEGADO) {
+    ss = getLegacySpreadsheet_();
+  } else if (/^SETOR_\d+$/.test(src)) {
+    const idx = parseInt(src.replace('SETOR_', ''), 10);
+    ss = getSetorSpreadsheetByIndex_(idx);
+    if (!ss) throw new Error('Planilha do setor ' + src + ' não encontrada. Execute setup_setores_banco.');
+  } else {
+    ss = getDataSpreadsheet_();
+  }
+
+  const sh = autoDetectDataSheet_(ss, allowCreate !== false);
+  const pack = buildRespostasIndexMap_(sh, allowCreate !== false);
+  if (!pack || !pack.sh) throw new Error('Aba de dados não encontrada para a fonte: ' + src);
+  pack.source = src;
+  return pack;
+}
+
+var __MAPS_CACHE = null;
+function getRespostasIndexMapsConsulta_(){
+  if (__MAPS_CACHE) return __MAPS_CACHE;
+  const maps = [];
+  const seen = {};
+
+  let sources = [];
+  try { sources = getDataSources_(); } catch(e) { Logger.log('[CONSULTA] getDataSources_ erro: ' + e.message); }
+
+  sources.forEach(src => {
+    try {
+      const sid = src.ss.getId();
+      if (seen[sid]) return;
+      seen[sid] = true;
+
+      const sh = autoDetectDataSheet_(src.ss, false);
+      if (!sh) return;
+      if (sh.getLastRow() < 2 || sh.getLastColumn() < 1) return;
+
+      const pack = buildRespostasIndexMap_(sh, false);
+      if (!pack || !pack.sh) return;
+      pack.source = src.source;
+      // pré-calcula iProt para evitar findColIdx_ em loops
+      pack.iProt = findColIdx_(pack.headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
+      maps.push(pack);
+    } catch(eSrc) {
+      Logger.log('[CONSULTA] Falha ao ler fonte ' + (src && src.source) + ': ' + eSrc.message);
+    }
+  });
+
+  __MAPS_CACHE = maps;
+  return maps;
+}
+
+function getRespostasIndexMap_(){
+  return getRespostasIndexMapBySource_(DATA_SOURCE_NOVO, true);
 }
 
 /************************
@@ -902,13 +1153,15 @@ function checkCpfExistence(cpf) {
   cpf = normalizeCPF(cpf);
   if (!cpf) return { exists:false };
 
-  const { sh, idx } = getRespostasIndexMap_();
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return { exists:false };
-
-  const values = sh.getRange(2, idx.cpf+1, lastRow-1, 1).getValues();
-  const exists = values.some(r => normalizeCPF(r[0]) === cpf);
-  return { exists };
+  const maps = getRespostasIndexMapsConsulta_();
+  for (let m = 0; m < maps.length; m++) {
+    const { sh, idx } = maps[m];
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) continue;
+    const values = sh.getRange(2, idx.cpf+1, lastRow-1, 1).getValues();
+    if (values.some(r => normalizeCPF(r[0]) === cpf)) return { exists:true };
+  }
+  return { exists:false };
 }
 
 /************************
@@ -1021,15 +1274,26 @@ function salvarFormulario(dados) {
   // 🔹 anexos
   const anexos = Array.isArray(dados.anexos) ? dados.anexos : [];
 
-  const shPref = getSheet_(RESPOSTAS_SHEET_NAME);
-  const sh = (shPref && shPref.getLastRow() >= 1) ? shPref : autoDetectDataSheet_();
+  // Rotear gravação para planilha do setor (cada setor grava no seu próprio banco)
+  let sh;
+  const setorLabelSave = (dados.via_entrada || '').trim();
+  if (setorLabelSave && SETORES_BANCO_FOLDER_ID) {
+    try {
+      const setorSS = getSetorSpreadsheet_(setorLabelSave);
+      if (setorSS) sh = autoDetectDataSheet_(setorSS, true);
+    } catch(eSS) {
+      Logger.log('[SETOR_SS] Erro ao obter planilha do setor, usando principal: ' + eSS.message);
+    }
+  }
+  if (!sh) {
+    const shPref = getSheet_(RESPOSTAS_SHEET_NAME);
+    sh = (shPref && shPref.getLastRow() >= 1) ? shPref : autoDetectDataSheet_();
+  }
 
   let newRow, protocoloGerado = '';
   const lock1 = LockService.getScriptLock(); lock1.waitLock(10000);
 
   try {
-    const registros = sh.getDataRange().getValues();
-
     // Duplicidade (CPF + Benefício + mês/ano)
     const cpfNovo       = normalizeCPF(dados.cpf);
     const beneficioNovo = (dados.demanda || '').toString().trim();
@@ -1039,20 +1303,25 @@ function salvarFormulario(dados) {
     const isIlimitado   = BENEFICIOS_ILIMITADOS.has(benKeyNovo);
 
     let lastMatchDate = null;
-    for (let i=1; i<registros.length; i++) {
-      const cpfExistente       = normalizeCPF((registros[i][12] || '').toString().trim());
-      const beneficioExistente = (registros[i][2]  || '').toString().trim();
-      const benKeyExistente    = normalizeBenefit_(beneficioExistente);
-      const dataExistente      = registros[i][3] ? parseAnyDate(registros[i][3]) : null;
+    const maps = getRespostasIndexMapsConsulta_();
+    maps.forEach(pack => {
+      const registros = pack.sh.getDataRange().getValues();
+      for (let i=1; i<registros.length; i++) {
+        const row = registros[i];
+        const cpfExistente       = normalizeCPF((row[pack.idx.cpf] || '').toString().trim());
+        const beneficioExistente = (row[pack.idx.beneficio] || '').toString().trim();
+        const benKeyExistente    = normalizeBenefit_(beneficioExistente);
+        const dataExistente      = row[pack.idx.data] ? parseAnyDate(row[pack.idx.data]) : null;
 
-      if (cpfExistente === cpfNovo &&
-          benKeyExistente === benKeyNovo &&
-          dataExistente &&
-          dataExistente.getMonth() === mesNovo &&
-          dataExistente.getFullYear() === anoNovo) {
-        if (!lastMatchDate || dataExistente > lastMatchDate) lastMatchDate = dataExistente;
+        if (cpfExistente === cpfNovo &&
+            benKeyExistente === benKeyNovo &&
+            dataExistente &&
+            dataExistente.getMonth() === mesNovo &&
+            dataExistente.getFullYear() === anoNovo) {
+          if (!lastMatchDate || dataExistente > lastMatchDate) lastMatchDate = dataExistente;
+        }
       }
-    }
+    });
 
     if (!isIlimitado && lastMatchDate) {
       const liberadoEm = firstDayNextMonth_(lastMatchDate);
@@ -1093,58 +1362,91 @@ function salvarFormulario(dados) {
 
     const assinaturaSheetValue = assinaturaB64 || dados.assinatura_carimbo || '';
 
-    sh.getRange(newRow, iPar+1 ).setValue(dados.parecer_tecnico || dados.parecer || '');
-    sh.getRange(newRow, iNomT+1).setValue(dados.nome_tecnico || '');
-    sh.getRange(newRow, iMun+1 ).setValue(dados.municipio_parecer || 'Nossa Senhora do Socorro');
-    sh.getRange(newRow, iData+1).setValue(dataParecerBR);
-    sh.getRange(newRow, iAssB+1).setValue(dados.assinatura_beneficiario || '');
-    sh.getRange(newRow, iAssT+1).setValue(assinaturaSheetValue);
+    // Escreve as 6 colunas de parecer numa única operação contígua quando possível,
+    // senão cai para escritas individuais.
+    const cols = [iPar, iNomT, iMun, iData, iAssB, iAssT];
+    const vals = [
+      dados.parecer_tecnico || dados.parecer || '',
+      dados.nome_tecnico || '',
+      dados.municipio_parecer || 'Nossa Senhora do Socorro',
+      dataParecerBR,
+      dados.assinatura_beneficiario || '',
+      assinaturaSheetValue
+    ];
+    const minC = Math.min.apply(null, cols);
+    const maxC = Math.max.apply(null, cols);
+    const isContig = (maxC - minC + 1) === cols.length &&
+                     cols.slice().sort((a,b)=>a-b).every((c,i)=>c === minC + i);
+    if (isContig) {
+      const ordered = cols.map((c, i) => ({ c, v: vals[i] }))
+                          .sort((a,b)=>a.c - b.c).map(o=>o.v);
+      sh.getRange(newRow, minC+1, 1, cols.length).setValues([ordered]);
+    } else {
+      cols.forEach((c, i) => sh.getRange(newRow, c+1).setValue(vals[i]));
+    }
 
   } finally {
     lock1.releaseLock();
   }
 
-  // Pasta do caso (Setor/Ano/Mês/Dia/[PROTO - NOME])
-  const setorLabel = dados.via_entrada || 'Sem Setor';
-  const dataRef    = parseISODateSafe(dados.data_solicitacao || new Date());
-  const pastaCaso  = getCaseFolder_(setorLabel, dataRef, protocoloGerado, dados.nomeb);
+  // Pasta do caso (Setor/Ano/Mês/Dia/[PROTO - NOME]) + PDF + Anexos
+  // Operações de Drive isoladas em try-catch: se falharem, o cadastro já foi salvo
+  let pdfLink = '';
+  let avisosDrive = '';
 
-  // PDF
-  const pdf = gerarFichaPDF(Object.assign({}, dados, {
-    protocolo: protocoloGerado,
-    __assinaturaBlob__: assinaturaBlob
-  }), pastaCaso);
-
-  // Atualiza PDF + Documentos
-  const lock2 = LockService.getScriptLock(); lock2.waitLock(10000);
   try {
-    const iPdf  = ensureColumn_(sh, 'PDF');
-    const iDocs = ensureDocumentosColumn_(sh);
+    const setorLabel = dados.via_entrada || 'Sem Setor';
+    const dataRef    = parseISODateSafe(dados.data_solicitacao || new Date());
 
-    withRetry(()=>sh.getRange(newRow, iPdf+1).setValue(pdf.downloadUrl), 5, 250);
+    Logger.log('[DRIVE] Criando pasta do caso para setor: ' + setorLabel);
+    const pastaCaso  = getCaseFolder_(setorLabel, dataRef, protocoloGerado, dados.nomeb);
+    Logger.log('[DRIVE] Pasta criada. Gerando PDF...');
 
-    if (anexos && anexos.length) {
-      const textoDocs = salvarAnexosNoDrive_(anexos, pastaCaso, protocoloGerado);
-      if (textoDocs) {
-        const anterior = sh.getRange(newRow, iDocs+1).getValue() || '';
-        const novo     = anterior ? (anterior + '\n' + textoDocs) : textoDocs;
-        withRetry(()=>sh.getRange(newRow, iDocs+1).setValue(novo), 5, 250);
+    // PDF
+    const pdf = gerarFichaPDF(Object.assign({}, dados, {
+      protocolo: protocoloGerado,
+      __assinaturaBlob__: assinaturaBlob
+    }), pastaCaso);
+    Logger.log('[DRIVE] PDF gerado: ' + pdf.downloadUrl);
+
+    pdfLink = pdf.downloadUrl || '';
+
+    // Atualiza PDF + Documentos na planilha
+    const lock2 = LockService.getScriptLock(); lock2.waitLock(10000);
+    try {
+      const iPdf  = ensureColumn_(sh, 'PDF');
+      const iDocs = ensureDocumentosColumn_(sh);
+
+      withRetry(()=>sh.getRange(newRow, iPdf+1).setValue(pdfLink), 5, 250);
+
+      if (anexos && anexos.length) {
+        const textoDocs = salvarAnexosNoDrive_(anexos, pastaCaso, protocoloGerado);
+        if (textoDocs) {
+          const anterior = sh.getRange(newRow, iDocs+1).getValue() || '';
+          const novo     = anterior ? (anterior + '\n' + textoDocs) : textoDocs;
+          withRetry(()=>sh.getRange(newRow, iDocs+1).setValue(novo), 5, 250);
+        }
       }
+    } finally {
+      lock2.releaseLock();
     }
 
-  } finally {
-    lock2.releaseLock();
+    // E-mail ao setor (se configurado)
+    try { enviarEmailSetor(dados.via_entrada, pdf, dados.nomeb); } catch(eEmail) {
+      Logger.log('[EMAIL] Erro ao enviar e-mail: ' + eEmail.message);
+    }
+
+  } catch(eDrive) {
+    Logger.log('[DRIVE] Erro ao salvar PDF/pasta: ' + eDrive.message + '\nStack: ' + eDrive.stack);
+    avisosDrive = 'Cadastro salvo com sucesso, mas houve um problema ao gerar o PDF/pasta no Drive (' + eDrive.message + '). Tente gerar o PDF manualmente pela Central.';
   }
 
-  // E-mail ao setor (se configurado)
-  enviarEmailSetor(dados.via_entrada, pdf, dados.nomeb);
-
   return {
-    sucesso:true,
-    mensagem:'Cadastro realizado, PDF e anexos salvos em pasta organizada, e e-mail enviado ao setor!',
-    link: pdf.downloadUrl,
+    sucesso: true,
+    mensagem: avisosDrive || 'Cadastro realizado, PDF e anexos salvos em pasta organizada, e e-mail enviado ao setor!',
+    link: pdfLink,
     protocolo: protocoloGerado,
-    concluirTexto:'Concluído'
+    concluirTexto: 'Concluído'
   };
 }
 
@@ -1250,11 +1552,13 @@ function gerarFichaPDF(dados, destFolderOpt) {
  * GERAR PDF A PARTIR DE UMA LINHA EXISTENTE
  ************************/
 function gerarPdfDeRegistro(linha) {
-  const shPref = getSheet_(RESPOSTAS_SHEET_NAME);
-  const sh = (shPref && shPref.getLastRow() >= 1) ? shPref : autoDetectDataSheet_();
+  const ref = decodeRowRef_(linha);
+  if (!ref.row) throw new Error('Linha inválida.');
+
+  const { sh } = getRespostasIndexMapBySource_(ref.source, true);
 
   const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0] || [];
-  const dados   = sh.getRange(linha,1,1,sh.getLastColumn()).getValues()[0];
+  const dados   = sh.getRange(ref.row,1,1,sh.getLastColumn()).getValues()[0];
 
   const dSolic = coerceSheetDate(dados[3]);
   const dNasc  = coerceSheetDate(dados[5]);
@@ -1329,7 +1633,7 @@ function gerarPdfDeRegistro(linha) {
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const iPdf = ensureColumn_(sh, 'PDF');
-    sh.getRange(linha, iPdf+1).setValue(pdf.downloadUrl);
+    sh.getRange(ref.row, iPdf+1).setValue(pdf.downloadUrl);
   } finally {
     lock.releaseLock();
   }
@@ -1339,50 +1643,59 @@ function gerarPdfDeRegistro(linha) {
  * CENTRAL (consulta)
  ************************/
 function buscarBeneficios(filtroCPF = "", dataInicio = "", dataFim = "", beneficio = "", unidade = "") {
-  const { sh, headers, idx } = getRespostasIndexMap_();
-  const dados = sh.getDataRange().getValues();
-
   const listaUnidades   = new Set();
   const listaBeneficios = new Set();
-  for (let i=1; i<dados.length; i++){
-    const r = dados[i];
-    if (r[idx.unidade])   listaUnidades.add(String(r[idx.unidade]).trim());
-    if (r[idx.beneficio]) listaBeneficios.add(String(r[idx.beneficio]).trim());
-  }
+  const maps = getRespostasIndexMapsConsulta_();
+  maps.forEach(pack => {
+    const dados = pack.sh.getDataRange().getValues();
+    for (let i=1; i<dados.length; i++){
+      const r = dados[i];
+      if (r[pack.idx.unidade])   listaUnidades.add(String(r[pack.idx.unidade]).trim());
+      if (r[pack.idx.beneficio]) listaBeneficios.add(String(r[pack.idx.beneficio]).trim());
+    }
+  });
+
   unidade   = resolveFiltroOuVazio_(Array.from(listaUnidades),   unidade);
   beneficio = resolveFiltroOuVazio_(Array.from(listaBeneficios), beneficio);
 
   const registros = [];
+  const seenProto = {};
   const cpfFiltroNum = normalizeCPF(filtroCPF);
   const dIni = parseAnyDate(dataInicio);
   const dFim = parseAnyDate(dataFim);
   const benFiltro = (beneficio || '').toString().trim();
   const uniFiltro = (unidade   || '').toString().trim();
 
-  const iProt = findColIdx_(headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
+  maps.forEach(pack => {
+    const dados = pack.sh.getDataRange().getValues();
+    const iProt = findColIdx_(pack.headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
 
-  for (let i=1; i<dados.length; i++) {
-    const row = dados[i];
+    for (let i=1; i<dados.length; i++) {
+      const row = dados[i];
 
-    const cpfStr   = (row[idx.cpf] || '').toString().trim();
-    const cpfNum   = normalizeCPF(cpfStr);
-    const status   = isRowEntregue_(row, idx) ? 'ENTREGUE' : (String(row[idx.status] || 'PENDENTE').toUpperCase());
-    const data     = coerceSheetDate(row[idx.data]);
-    const demanda  = (row[idx.beneficio] || '').toString().trim();
-    const unidadeV = (row[idx.unidade] || '').toString().trim();
-    const nome     = (row[idx.nome] || '').toString().trim();
-    const protocolo= iProt>=0 ? String(row[iProt]||'').trim() : '';
+      const cpfStr   = (row[pack.idx.cpf] || '').toString().trim();
+      const cpfNum   = normalizeCPF(cpfStr);
+      const status   = isRowEntregue_(row, pack.idx) ? 'ENTREGUE' : (String(row[pack.idx.status] || 'PENDENTE').toUpperCase());
+      const data     = coerceSheetDate(row[pack.idx.data]);
+      const demanda  = (row[pack.idx.beneficio] || '').toString().trim();
+      const unidadeV = (row[pack.idx.unidade] || '').toString().trim();
+      const nome     = (row[pack.idx.nome] || '').toString().trim();
+      const protocolo= iProt>=0 ? String(row[iProt]||'').trim() : '';
 
-    let okData = true;
-    if (dIni && data && data < startOfDay(dIni)) okData = false;
-    if (dFim && data && data > endOfDay(dFim)) okData = false;
+      let okData = true;
+      if (dIni && data && data < startOfDay(dIni)) okData = false;
+      if (dFim && data && data > endOfDay(dFim)) okData = false;
 
-    if (benFiltro && !matchesFilter_(demanda, benFiltro)) continue;
-    if (uniFiltro && !matchesFilter_(unidadeV, uniFiltro)) continue;
+      if (benFiltro && !matchesFilter_(demanda, benFiltro)) continue;
+      if (uniFiltro && !matchesFilter_(unidadeV, uniFiltro)) continue;
+      if ((cpfFiltroNum && cpfNum !== cpfFiltroNum) || !okData) continue;
 
-    if ((!cpfFiltroNum || cpfNum === cpfFiltroNum) && okData) {
+      const protoKey = String(protocolo || '').trim();
+      if (protoKey && seenProto[protoKey]) continue;
+      if (protoKey) seenProto[protoKey] = true;
+
       registros.push({
-        linha: i+1,
+        linha: encodeRowRef_(pack.source, i+1),
         data: data ? formatDateBR(data) : '',
         unidade: unidadeV,
         demanda,
@@ -1390,11 +1703,12 @@ function buscarBeneficios(filtroCPF = "", dataInicio = "", dataFim = "", benefic
         cpf: formatCPF(cpfStr),
         protocolo,
         status,
-        linkPdf: (idx.pdf>=0 ? (row[idx.pdf] || '') : ''),
-        documentos: (idx.docs>=0 ? (row[idx.docs] || '') : '')
+        linkPdf: (pack.idx.pdf>=0 ? (row[pack.idx.pdf] || '') : ''),
+        documentos: (pack.idx.docs>=0 ? (row[pack.idx.docs] || '') : '')
       });
     }
-  }
+  });
+
   return { registros };
 }
 
@@ -1418,7 +1732,7 @@ function resolveFiltroOuVazio_(lista, valor){
  * BAIXA — Opções / Lista / Busca / Entrega
  ************************/
 function ensureBaixasSheet_(){
-  const ss = SpreadsheetApp.openById(PLANILHA_ID);
+  const ss = getDataSpreadsheet_();
   let sh = ss.getSheetByName(BAIXAS_SHEET_NAME);
   if (!sh){
     sh = ss.insertSheet(BAIXAS_SHEET_NAME);
@@ -1462,23 +1776,25 @@ function sortList_(arr, order){
 }
 
 function listarUnidadesDashboard(){
-  const { sh, idx } = getRespostasIndexMap_();
-  const dados = sh.getDataRange().getValues().slice(1);
   const set = new Set();
-  dados.forEach(l => {
-    const u = (l[idx.unidade] || '').toString().trim();
-    if (u) set.add(u);
+  getRespostasIndexMapsConsulta_().forEach(pack => {
+    const dados = pack.sh.getDataRange().getValues().slice(1);
+    dados.forEach(l => {
+      const u = (l[pack.idx.unidade] || '').toString().trim();
+      if (u) set.add(u);
+    });
   });
   return Array.from(set).sort();
 }
 
 function listarBeneficiosDashboard(){
-  const { sh, idx } = getRespostasIndexMap_();
-  const dados = sh.getDataRange().getValues().slice(1);
   const set = new Set();
-  dados.forEach(l => {
-    const b = (l[idx.beneficio] || '').toString().trim();
-    if (b) set.add(b);
+  getRespostasIndexMapsConsulta_().forEach(pack => {
+    const dados = pack.sh.getDataRange().getValues().slice(1);
+    dados.forEach(l => {
+      const b = (l[pack.idx.beneficio] || '').toString().trim();
+      if (b) set.add(b);
+    });
   });
   return Array.from(set).sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
 }
@@ -1489,65 +1805,77 @@ function getOpcoesFiltros(){
 function baixa_listarOpcoes(){ return getOpcoesFiltros(); }
 
 function baixa_list(statusFilter='todos', unidadeFiltro='', beneficioFiltro='', order='data_desc', pdfOnly=false, hasProto=false, dataInicio='', dataFim=''){
-  const { sh, headers, idx } = getRespostasIndexMap_();
-  const values = sh.getRange(2,1, Math.max(0, sh.getLastRow()-1), sh.getLastColumn()).getValues();
-
   const setUnidades = new Set(), setBenef = new Set();
-  for (let r=0;r<values.length;r++){
-    const row = values[r];
-    if (row[idx.unidade])   setUnidades.add(String(row[idx.unidade]).trim());
-    if (row[idx.beneficio]) setBenef.add(String(row[idx.beneficio]).trim());
-  }
+  const maps = getRespostasIndexMapsConsulta_();
+  maps.forEach(pack => {
+    const values = pack.sh.getRange(2,1, Math.max(0, pack.sh.getLastRow()-1), pack.sh.getLastColumn()).getValues();
+    for (let r=0;r<values.length;r++){
+      const row = values[r];
+      if (row[pack.idx.unidade])   setUnidades.add(String(row[pack.idx.unidade]).trim());
+      if (row[pack.idx.beneficio]) setBenef.add(String(row[pack.idx.beneficio]).trim());
+    }
+  });
+
   unidadeFiltro   = resolveFiltroOuVazio_(Array.from(setUnidades), unidadeFiltro);
   beneficioFiltro = resolveFiltroOuVazio_(Array.from(setBenef),    beneficioFiltro);
 
   const wantPend = String(statusFilter).toLowerCase() === 'pendentes';
   const wantEnt  = String(statusFilter).toLowerCase() === 'entregues';
-  const iProt = findColIdx_(headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
 
   const dIni = parseAnyDate(dataInicio);
   const dFim = parseAnyDate(dataFim);
 
   const out = [];
-  for (let r=0; r<values.length; r++){
-    const row = values[r];
+  const seenProto = {};
 
-    const unidade = (row[idx.unidade] || '').toString().trim();
-    const benef   = (row[idx.beneficio] || '').toString().trim();
-    if (unidadeFiltro && !matchesFilter_(unidade, unidadeFiltro)) continue;
-    if (beneficioFiltro && !matchesFilter_(benef, beneficioFiltro)) continue;
+  maps.forEach(pack => {
+    const values = pack.sh.getRange(2,1, Math.max(0, pack.sh.getLastRow()-1), pack.sh.getLastColumn()).getValues();
+    const iProt = findColIdx_(pack.headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
 
-    const isEnt   = isRowEntregue_(row, idx);
-    if (wantPend && isEnt) continue;
-    if (wantEnt  && !isEnt) continue;
+    for (let r=0; r<values.length; r++){
+      const row = values[r];
 
-    const stCell  = idx.status>=0 ? String(row[idx.status]||'').toUpperCase() : '';
-    const status  = isEnt ? 'ENTREGUE' : (stCell || 'PENDENTE');
-    const dataObj = coerceSheetDate(row[idx.data]);
+      const unidade = (row[pack.idx.unidade] || '').toString().trim();
+      const benef   = (row[pack.idx.beneficio] || '').toString().trim();
+      if (unidadeFiltro && !matchesFilter_(unidade, unidadeFiltro)) continue;
+      if (beneficioFiltro && !matchesFilter_(benef, beneficioFiltro)) continue;
 
-    if (dIni && dataObj && dataObj < startOfDay(dIni)) continue;
-    if (dFim && dataObj && dataObj > endOfDay(dFim))   continue;
+      const isEnt   = isRowEntregue_(row, pack.idx);
+      if (wantPend && isEnt) continue;
+      if (wantEnt  && !isEnt) continue;
 
-    const linkPdf = idx.pdf>=0 ? (row[idx.pdf] || '') : '';
-    if (pdfOnly && !linkPdf) continue;
+      const stCell  = pack.idx.status>=0 ? String(row[pack.idx.status]||'').toUpperCase() : '';
+      const status  = isEnt ? 'ENTREGUE' : (stCell || 'PENDENTE');
+      const dataObj = coerceSheetDate(row[pack.idx.data]);
 
-    const protStr = iProt>=0 ? String(row[iProt]||'') : '';
-    if (hasProto && !protStr) continue;
+      if (dIni && dataObj && dataObj < startOfDay(dIni)) continue;
+      if (dFim && dataObj && dataObj > endOfDay(dFim))   continue;
 
-    out.push({
-      rowRef:      r+2,
-      protocolo:   protStr || '',
-      nome:        idx.nome>=0 ? String(row[idx.nome]||'').trim() : '',
-      cpf:         idx.cpf>=0 ? formatCPF(String(row[idx.cpf]||'')) : '',
-      beneficio:   benef,
-      unidade,
-      solicitadoEm: dataObj ? formatDateBR(dataObj) : '',
-      status,
-      pdf:         linkPdf,
-      entregue:    isEnt,
-      documentos:  idx.docs>=0 ? (row[idx.docs] || '') : ''
-    });
-  }
+      const linkPdf = pack.idx.pdf>=0 ? (row[pack.idx.pdf] || '') : '';
+      if (pdfOnly && !linkPdf) continue;
+
+      const protStr = iProt>=0 ? String(row[iProt]||'') : '';
+      if (hasProto && !protStr) continue;
+
+      const protoKey = String(protStr || '').trim();
+      if (protoKey && seenProto[protoKey]) continue;
+      if (protoKey) seenProto[protoKey] = true;
+
+      out.push({
+        rowRef:      encodeRowRef_(pack.source, r+2),
+        protocolo:   protStr || '',
+        nome:        pack.idx.nome>=0 ? String(row[pack.idx.nome]||'').trim() : '',
+        cpf:         pack.idx.cpf>=0 ? formatCPF(String(row[pack.idx.cpf]||'')) : '',
+        beneficio:   benef,
+        unidade,
+        solicitadoEm: dataObj ? formatDateBR(dataObj) : '',
+        status,
+        pdf:         linkPdf,
+        entregue:    isEnt,
+        documentos:  pack.idx.docs>=0 ? (row[pack.idx.docs] || '') : ''
+      });
+    }
+  });
 
   sortList_(out, order);
   return { registros: out.slice(0,2000) };
@@ -1557,21 +1885,22 @@ function baixa_search(q, statusFilter='todos', unidadeFiltro='', beneficioFiltro
   q = String(q || '').trim();
   if (!q) return { registros: [] };
 
-  const { sh, headers, idx } = getRespostasIndexMap_();
-  const values = sh.getRange(2,1, Math.max(0, sh.getLastRow()-1), sh.getLastColumn()).getValues();
-
   const setUnidades = new Set(), setBenef = new Set();
-  for (let r=0;r<values.length;r++){
-    const row = values[r];
-    if (row[idx.unidade])   setUnidades.add(String(row[idx.unidade]).trim());
-    if (row[idx.beneficio]) setBenef.add(String(row[idx.beneficio]).trim());
-  }
+  const maps = getRespostasIndexMapsConsulta_();
+  maps.forEach(pack => {
+    const values = pack.sh.getRange(2,1, Math.max(0, pack.sh.getLastRow()-1), pack.sh.getLastColumn()).getValues();
+    for (let r=0;r<values.length;r++){
+      const row = values[r];
+      if (row[pack.idx.unidade])   setUnidades.add(String(row[pack.idx.unidade]).trim());
+      if (row[pack.idx.beneficio]) setBenef.add(String(row[pack.idx.beneficio]).trim());
+    }
+  });
+
   unidadeFiltro   = resolveFiltroOuVazio_(Array.from(setUnidades), unidadeFiltro);
   beneficioFiltro = resolveFiltroOuVazio_(Array.from(setBenef),    beneficioFiltro);
 
   const wantPend = String(statusFilter).toLowerCase() === 'pendentes';
   const wantEnt  = String(statusFilter).toLowerCase() === 'entregues';
-  const iProt = findColIdx_(headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
 
   const qLower = q.toLowerCase();
   const qNum   = q.replace(/\D/g,'');
@@ -1580,55 +1909,65 @@ function baixa_search(q, statusFilter='todos', unidadeFiltro='', beneficioFiltro
   const dFim   = parseAnyDate(dataFim);
 
   const out = [];
-  for (let r=0; r<values.length; r++){
-    const row = values[r];
+  const seenProto = {};
+  maps.forEach(pack => {
+    const values = pack.sh.getRange(2,1, Math.max(0, pack.sh.getLastRow()-1), pack.sh.getLastColumn()).getValues();
+    const iProt = findColIdx_(pack.headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
 
-    const unidade = (row[idx.unidade] || '').toString().trim();
-    const benef   = (row[idx.beneficio] || '').toString().trim();
-    if (unidadeFiltro && !matchesFilter_(unidade, unidadeFiltro)) continue;
-    if (beneficioFiltro && !matchesFilter_(benef, beneficioFiltro)) continue;
+    for (let r=0; r<values.length; r++){
+      const row = values[r];
 
-    const cpfStr   = idx.cpf>=0 ? String(row[idx.cpf]||'') : '';
-    const cpfNum   = cpfStr.replace(/\D/g,'');
-    const nomeStr  = idx.nome>=0 ? String(row[idx.nome]||'') : '';
-    const nomeNorm = normText_(nomeStr);
-    const protStr  = iProt>=0 ? String(row[iProt]||'') : '';
+      const unidade = (row[pack.idx.unidade] || '').toString().trim();
+      const benef   = (row[pack.idx.beneficio] || '').toString().trim();
+      if (unidadeFiltro && !matchesFilter_(unidade, unidadeFiltro)) continue;
+      if (beneficioFiltro && !matchesFilter_(benef, beneficioFiltro)) continue;
 
-    const match =
-      (qNum && (cpfNum.includes(qNum) || protStr.replace(/\D/g,'').includes(qNum))) ||
-      (qNorm && nomeNorm.includes(qNorm)) ||
-      (iProt>=0 && protStr.toLowerCase().includes(qLower));
-    if (!match) continue;
+      const cpfStr   = pack.idx.cpf>=0 ? String(row[pack.idx.cpf]||'') : '';
+      const cpfNum   = cpfStr.replace(/\D/g,'');
+      const nomeStr  = pack.idx.nome>=0 ? String(row[pack.idx.nome]||'') : '';
+      const nomeNorm = normText_(nomeStr);
+      const protStr  = iProt>=0 ? String(row[iProt]||'') : '';
 
-    const isEnt   = isRowEntregue_(row, idx);
-    if (wantPend && isEnt) continue;
-    if (wantEnt  && !isEnt) continue;
+      const match =
+        (qNum && (cpfNum.includes(qNum) || protStr.replace(/\D/g,'').includes(qNum))) ||
+        (qNorm && nomeNorm.includes(qNorm)) ||
+        (iProt>=0 && protStr.toLowerCase().includes(qLower));
+      if (!match) continue;
 
-    const stCell  = idx.status>=0 ? String(row[idx.status]||'').toUpperCase() : '';
-    const status  = isEnt ? 'ENTREGUE' : (stCell || 'PENDENTE');
-    const dataObj = coerceSheetDate(row[idx.data]);
+      const isEnt   = isRowEntregue_(row, pack.idx);
+      if (wantPend && isEnt) continue;
+      if (wantEnt  && !isEnt) continue;
 
-    if (dIni && dataObj && dataObj < startOfDay(dIni)) continue;
-    if (dFim && dataObj && dataObj > endOfDay(dFim))   continue;
+      const stCell  = pack.idx.status>=0 ? String(row[pack.idx.status]||'').toUpperCase() : '';
+      const status  = isEnt ? 'ENTREGUE' : (stCell || 'PENDENTE');
+      const dataObj = coerceSheetDate(row[pack.idx.data]);
 
-    const linkPdf = idx.pdf>=0 ? (row[idx.pdf] || '') : '';
-    if (pdfOnly && !linkPdf) continue;
-    if (hasProto && !protStr) continue;
+      if (dIni && dataObj && dataObj < startOfDay(dIni)) continue;
+      if (dFim && dataObj && dataObj > endOfDay(dFim))   continue;
 
-    out.push({
-      rowRef:      r+2,
-      protocolo:   protStr,
-      nome:        nomeStr,
-      cpf:         formatCPF(cpfStr),
-      beneficio:   benef,
-      unidade,
-      solicitadoEm: dataObj ? formatDateBR(dataObj) : '',
-      status,
-      pdf:         linkPdf,
-      entregue:    isEnt,
-      documentos:  idx.docs>=0 ? (row[idx.docs] || '') : ''
-    });
-  }
+      const linkPdf = pack.idx.pdf>=0 ? (row[pack.idx.pdf] || '') : '';
+      if (pdfOnly && !linkPdf) continue;
+      if (hasProto && !protStr) continue;
+
+      const protoKey = String(protStr || '').trim();
+      if (protoKey && seenProto[protoKey]) continue;
+      if (protoKey) seenProto[protoKey] = true;
+
+      out.push({
+        rowRef:      encodeRowRef_(pack.source, r+2),
+        protocolo:   protStr,
+        nome:        nomeStr,
+        cpf:         formatCPF(cpfStr),
+        beneficio:   benef,
+        unidade,
+        solicitadoEm: dataObj ? formatDateBR(dataObj) : '',
+        status,
+        pdf:         linkPdf,
+        entregue:    isEnt,
+        documentos:  pack.idx.docs>=0 ? (row[pack.idx.docs] || '') : ''
+      });
+    }
+  });
 
   sortList_(out, order);
   return { registros: out };
@@ -1638,7 +1977,9 @@ function baixa_marcarEntrega(payload){
   const { rowRef, dataEntrega, setor, usuario, obs } = payload || {};
   if (!rowRef) throw new Error('RowRef não informado');
 
-  const { sh, headers, idx } = getRespostasIndexMap_();
+  const ref = decodeRowRef_(rowRef);
+  if (!ref.row) throw new Error('RowRef inválido');
+  const { sh, headers, idx } = getRespostasIndexMapBySource_(ref.source, true);
 
   const iEnt    = idx.entregueFlag;
   const iEntEm  = ensureColumn_(sh, ENTREGUE_EM_HDR);
@@ -1649,7 +1990,7 @@ function baixa_marcarEntrega(payload){
   let iStatus = idx.status;
   if (iStatus < 0) iStatus = ensureColumn_(sh, 'Status');
 
-  const rowVals = sh.getRange(rowRef, 1, 1, sh.getLastColumn()).getValues()[0];
+  const rowVals = sh.getRange(ref.row, 1, 1, sh.getLastColumn()).getValues()[0];
   const antes = isRowEntregue_(rowVals, idx)
     ? 'ENTREGUE'
     : String(rowVals[iStatus] || 'PENDENTE').toUpperCase();
@@ -1667,12 +2008,12 @@ function baixa_marcarEntrega(payload){
 
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
-    sh.getRange(rowRef, iEnt+1).setValue('ENTREGUE');
-    sh.getRange(rowRef, iEntEm+1).setValue(dt);
-    sh.getRange(rowRef, iEntPor+1).setValue(usuario || '');
-    sh.getRange(rowRef, iEntUni+1).setValue(setor   || '');
-    sh.getRange(rowRef, iEntObs+1).setValue(obs     || '');
-    sh.getRange(rowRef, iStatus+1).setValue('ENTREGUE');
+    sh.getRange(ref.row, iEnt+1).setValue('ENTREGUE');
+    sh.getRange(ref.row, iEntEm+1).setValue(dt);
+    sh.getRange(ref.row, iEntPor+1).setValue(usuario || '');
+    sh.getRange(ref.row, iEntUni+1).setValue(setor   || '');
+    sh.getRange(ref.row, iEntObs+1).setValue(obs     || '');
+    sh.getRange(ref.row, iStatus+1).setValue('ENTREGUE');
   } finally {
     lock.releaseLock();
   }
@@ -1689,7 +2030,7 @@ function baixa_marcarEntrega(payload){
     idxCPF  >=0 ? rowVals[idxCPF]  : '',
     idxNome >=0 ? rowVals[idxNome] : '',
     idxBen  >=0 ? rowVals[idxBen]  : '',
-    antes, 'ENTREGUE', dt, setor||'', usuario||'', obs||'', rowRef
+    antes, 'ENTREGUE', dt, setor||'', usuario||'', obs||'', encodeRowRef_(ref.source, ref.row)
   ]);
 
   return true;
@@ -1699,11 +2040,9 @@ function baixa_marcarEntrega(payload){
  * DASHBOARD
  ************************/
 function getDashboardCompleto(inicio, fim, unidade = "") {
-  const { sh, idx } = getRespostasIndexMap_();
-  const rows = sh.getDataRange().getValues();
-  if (rows.length <= 1) return payloadDashboardVazio_();
+  const maps = getRespostasIndexMapsConsulta_();
+  if (!maps.length) return payloadDashboardVazio_();
 
-  const dados = rows.slice(1);
   const dIni = parseAnyDate(inicio);
   const dFim = parseAnyDate(fim);
 
@@ -1715,47 +2054,57 @@ function getDashboardCompleto(inicio, fim, unidade = "") {
   const dow = [0,0,0,0,0,0,0];
   const registros = [];
 
-  dados.forEach(linha => {
-    const data = coerceSheetDate(linha[idx.data]);
-    if (!data) return;
-    if (dIni && data < startOfDay(dIni)) return;
-    if (dFim && data > endOfDay(dFim)) return;
+  const seenProto = {};
+  maps.forEach(pack => {
+    const rows = pack.sh.getDataRange().getValues();
+    if (rows.length <= 1) return;
+    rows.slice(1).forEach(linha => {
+      const data = coerceSheetDate(linha[pack.idx.data]);
+      if (!data) return;
+      if (dIni && data < startOfDay(dIni)) return;
+      if (dFim && data > endOfDay(dFim)) return;
 
-    const setor  = (linha[idx.unidade] || 'Indefinido').toString().trim();
-    if (unidade && !matchesFilter_(setor, unidade)) return;
+      const setor  = (linha[pack.idx.unidade] || 'Indefinido').toString().trim();
+      if (unidade && !matchesFilter_(setor, unidade)) return;
 
-    const isEnt   = isRowEntregue_(linha, idx);
-    const status = isEnt ? 'ENTREGUE' : (String(linha[idx.status] || 'PENDENTE').toUpperCase());
-    const tipo   = (linha[idx.beneficio] || 'Indefinido').toString().trim();
-    const cpfStr = (linha[idx.cpf] || '').toString().trim();
-    const nome   = (linha[idx.nome] || '').toString().trim();
+      const isEnt   = isRowEntregue_(linha, pack.idx);
+      const status = isEnt ? 'ENTREGUE' : (String(linha[pack.idx.status] || 'PENDENTE').toUpperCase());
+      const tipo   = (linha[pack.idx.beneficio] || 'Indefinido').toString().trim();
+      const cpfStr = (linha[pack.idx.cpf] || '').toString().trim();
+      const nome   = (linha[pack.idx.nome] || '').toString().trim();
 
-    statusTotais.SOLICITADO++;
-    if (statusTotais.hasOwnProperty(status)) statusTotais[status]++;
+      const iProt = (typeof pack.iProt === 'number') ? pack.iProt : findColIdx_(pack.headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
+      const protoKey = iProt >= 0 ? String(linha[iProt] || '').trim() : '';
+      if (protoKey && seenProto[protoKey]) return;
+      if (protoKey) seenProto[protoKey] = true;
 
-    tipos[tipo] = (tipos[tipo] || 0) + 1;
+      statusTotais.SOLICITADO++;
+      if (statusTotais.hasOwnProperty(status)) statusTotais[status]++;
 
-    if (!setores[setor]) setores[setor] = { SOLICITADO:0, APROVADO:0, PENDENTE:0, RECUSADO:0, ENTREGUE:0 };
-    setores[setor].SOLICITADO++;
-    if (setores[setor].hasOwnProperty(status)) setores[setor][status]++;
+      tipos[tipo] = (tipos[tipo] || 0) + 1;
 
-    const chave = (('0'+(data.getMonth()+1)).slice(-2)) + '/' + data.getFullYear();
-    meses[chave] = (meses[chave] || 0) + 1;
+      if (!setores[setor]) setores[setor] = { SOLICITADO:0, APROVADO:0, PENDENTE:0, RECUSADO:0, ENTREGUE:0 };
+      setores[setor].SOLICITADO++;
+      if (setores[setor].hasOwnProperty(status)) setores[setor][status]++;
 
-    if (!byMonthStatus[chave]) byMonthStatus[chave] = { SOLICITADO:0, APROVADO:0, PENDENTE:0, RECUSADO:0, ENTREGUE:0 };
-    byMonthStatus[chave][status] = (byMonthStatus[chave][status] || 0) + 1;
+      const chave = (('0'+(data.getMonth()+1)).slice(-2)) + '/' + data.getFullYear();
+      meses[chave] = (meses[chave] || 0) + 1;
 
-    dow[data.getDay()]++;
+      if (!byMonthStatus[chave]) byMonthStatus[chave] = { SOLICITADO:0, APROVADO:0, PENDENTE:0, RECUSADO:0, ENTREGUE:0 };
+      byMonthStatus[chave][status] = (byMonthStatus[chave][status] || 0) + 1;
 
-    registros.push({
-      nome,
-      cpf: formatCPF(cpfStr),
-      unidade:setor,
-      beneficio:tipo,
-      demanda:tipo,
-      status,
-      dataISO: toISODate_(data),
-      dataBR: formatDateBR(data)
+      dow[data.getDay()]++;
+
+      registros.push({
+        nome,
+        cpf: formatCPF(cpfStr),
+        unidade:setor,
+        beneficio:tipo,
+        demanda:tipo,
+        status,
+        dataISO: toISODate_(data),
+        dataBR: formatDateBR(data)
+      });
     });
   });
 
@@ -1803,27 +2152,27 @@ function payloadDashboardVazio_(){
 }
 
 function buscarRegistrosIndefinidos(){
-  const { sh, idx } = getRespostasIndexMap_();
-  const rows = sh.getDataRange().getValues();
-  if (rows.length <= 1) return { registros: [] };
-
-  const dados = rows.slice(1);
   const indefinidos = [];
 
-  dados.forEach((linha, i) => {
-    const unidade = (linha[idx.unidade] || '').toString().trim();
-    if (!unidade || unidade === '') {
-      const data = coerceSheetDate(linha[idx.data]);
-      indefinidos.push({
-        linha: i + 2,
-        nome: idx.nome >= 0 ? (linha[idx.nome] || '').toString().trim() : '',
-        cpf: idx.cpf >= 0 ? formatCPF(linha[idx.cpf]) : '',
-        beneficio: idx.beneficio >= 0 ? (linha[idx.beneficio] || '').toString().trim() : '',
-        data: data ? formatDateBR(data) : '',
-        viaEntrada: idx.unidade >= 0 ? (linha[idx.unidade] || '').toString().trim() : '',
-        status: idx.status >= 0 ? (linha[idx.status] || 'PENDENTE').toString() : 'PENDENTE'
-      });
-    }
+  getRespostasIndexMapsConsulta_().forEach(pack => {
+    const rows = pack.sh.getDataRange().getValues();
+    if (rows.length <= 1) return;
+
+    rows.slice(1).forEach((linha, i) => {
+      const unidade = (linha[pack.idx.unidade] || '').toString().trim();
+      if (!unidade || unidade === '') {
+        const data = coerceSheetDate(linha[pack.idx.data]);
+        indefinidos.push({
+          linha: encodeRowRef_(pack.source, i + 2),
+          nome: pack.idx.nome >= 0 ? (linha[pack.idx.nome] || '').toString().trim() : '',
+          cpf: pack.idx.cpf >= 0 ? formatCPF(linha[pack.idx.cpf]) : '',
+          beneficio: pack.idx.beneficio >= 0 ? (linha[pack.idx.beneficio] || '').toString().trim() : '',
+          data: data ? formatDateBR(data) : '',
+          viaEntrada: pack.idx.unidade >= 0 ? (linha[pack.idx.unidade] || '').toString().trim() : '',
+          status: pack.idx.status >= 0 ? (linha[pack.idx.status] || 'PENDENTE').toString() : 'PENDENTE'
+        });
+      }
+    });
   });
 
   return { registros: indefinidos };
@@ -2053,9 +2402,11 @@ function garantirProtocolosPreenchidos(){ return backfillProtocolos(); }
  ************************/
 function getRegistroCompleto(linha){
   if (!linha) throw new Error('Linha não informada.');
-  const { sh, headers, idx } = getRespostasIndexMap_();
+  const ref = decodeRowRef_(linha);
+  if (!ref.row) throw new Error('Linha inválida.');
+  const { sh, headers, idx } = getRespostasIndexMapBySource_(ref.source, true);
   const lastCol = sh.getLastColumn();
-  const row = sh.getRange(linha, 1, 1, lastCol).getValues()[0];
+  const row = sh.getRange(ref.row, 1, 1, lastCol).getValues()[0];
 
   const toStr = v => {
     if (v instanceof Date) return formatDateBR(v);
@@ -2077,7 +2428,7 @@ function getRegistroCompleto(linha){
     : (String(idx.status>=0 ? row[idx.status] : 'PENDENTE').toUpperCase() || 'PENDENTE');
 
   const resumo = {
-    linha,
+    linha: encodeRowRef_(ref.source, ref.row),
     data: (function(){ const d = coerceSheetDate(row[idx.data]); return d ? formatDateBR(d) : ''; })(),
     unidade:  idx.unidade  >= 0 ? toStr(row[idx.unidade])  : '',
     demanda:  idx.beneficio>= 0 ? toStr(row[idx.beneficio]): '',
@@ -2097,7 +2448,9 @@ function atualizarStatus(linha, status){
   status = String(status||'').trim().toUpperCase();
   if (!linha || !status) throw new Error('Parâmetros inválidos.');
 
-  const { sh, idx } = getRespostasIndexMap_();
+  const ref = decodeRowRef_(linha);
+  if (!ref.row) throw new Error('Linha inválida.');
+  const { sh, idx } = getRespostasIndexMapBySource_(ref.source, true);
 
   let iStatus = idx.status;
   if (iStatus < 0) iStatus = ensureColumn_(sh, 'Status');
@@ -2105,16 +2458,16 @@ function atualizarStatus(linha, status){
   const iEnt    = idx.entregueFlag;
   const iEntEm  = ensureColumn_(sh, ENTREGUE_EM_HDR);
 
-  const rowVals = sh.getRange(linha, 1, 1, sh.getLastColumn()).getValues()[0];
+  const rowVals = sh.getRange(ref.row, 1, 1, sh.getLastColumn()).getValues()[0];
 
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try{
-    sh.getRange(linha, iStatus+1).setValue(status);
+    sh.getRange(ref.row, iStatus+1).setValue(status);
     if (status === 'ENTREGUE'){
-      sh.getRange(linha, iEnt+1).setValue('ENTREGUE');
-      if (!rowVals[iEntEm]) sh.getRange(linha, iEntEm+1).setValue(new Date());
+      sh.getRange(ref.row, iEnt+1).setValue('ENTREGUE');
+      if (!rowVals[iEntEm]) sh.getRange(ref.row, iEntEm+1).setValue(new Date());
     } else {
-      sh.getRange(linha, iEnt+1).setValue('');
+      sh.getRange(ref.row, iEnt+1).setValue('');
     }
   } finally { lock.releaseLock(); }
   return true;
@@ -2126,7 +2479,9 @@ function atualizarStatus(linha, status){
 function atualizarParecer(linha, payload){
   if (!linha) throw new Error('Linha não informada.');
   payload = payload || {};
-  const { sh } = getRespostasIndexMap_();
+  const ref = decodeRowRef_(linha);
+  if (!ref.row) throw new Error('Linha inválida.');
+  const { sh } = getRespostasIndexMapBySource_(ref.source, true);
 
   const iPar  = ensureColumn_(sh, 'PARECER TÉCNICO');
   const iNomT = ensureColumn_(sh, 'NOME TÉCNICO');
@@ -2137,15 +2492,15 @@ function atualizarParecer(linha, payload){
 
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try {
-    if (payload.parecer != null) sh.getRange(linha, iPar+1).setValue(String(payload.parecer||''));
-    if (payload.nome_tecnico != null) sh.getRange(linha, iNomT+1).setValue(String(payload.nome_tecnico||''));
-    if (payload.municipio_parecer != null) sh.getRange(linha, iMun+1).setValue(String(payload.municipio_parecer||''));
+    if (payload.parecer != null) sh.getRange(ref.row, iPar+1).setValue(String(payload.parecer||''));
+    if (payload.nome_tecnico != null) sh.getRange(ref.row, iNomT+1).setValue(String(payload.nome_tecnico||''));
+    if (payload.municipio_parecer != null) sh.getRange(ref.row, iMun+1).setValue(String(payload.municipio_parecer||''));
     if (payload.data_parecer != null){
       const d = parseISODateSafe(payload.data_parecer);
-      sh.getRange(linha, iData+1).setValue(d ? formatDateBR(d) : '');
+      sh.getRange(ref.row, iData+1).setValue(d ? formatDateBR(d) : '');
     }
-    if (payload.assinatura_beneficiario != null) sh.getRange(linha, iAssB+1).setValue(String(payload.assinatura_beneficiario||''));
-    if (payload.assinatura_carimbo != null) sh.getRange(linha, iAssT+1).setValue(String(payload.assinatura_carimbo||''));
+    if (payload.assinatura_beneficiario != null) sh.getRange(ref.row, iAssB+1).setValue(String(payload.assinatura_beneficiario||''));
+    if (payload.assinatura_carimbo != null) sh.getRange(ref.row, iAssT+1).setValue(String(payload.assinatura_carimbo||''));
   } finally {
     lock.releaseLock();
   }
@@ -2154,7 +2509,9 @@ function atualizarParecer(linha, payload){
 
 function lerParecer(linha){
   if (!linha) throw new Error('Linha não informada.');
-  const { sh } = getRespostasIndexMap_();
+  const ref = decodeRowRef_(linha);
+  if (!ref.row) throw new Error('Linha inválida.');
+  const { sh } = getRespostasIndexMapBySource_(ref.source, true);
 
   const iPar  = ensureColumn_(sh, 'PARECER TÉCNICO');
   const iNomT = ensureColumn_(sh, 'NOME TÉCNICO');
@@ -2163,7 +2520,7 @@ function lerParecer(linha){
   const iAssB = ensureColumn_(sh, 'ASSINATURA BENEFICIÁRIO');
   const iAssT = ensureColumn_(sh, 'ASSINATURA/CARIMBO');
 
-  const vals = sh.getRange(linha, 1, 1, sh.getLastColumn()).getValues()[0];
+  const vals = sh.getRange(ref.row, 1, 1, sh.getLastColumn()).getValues()[0];
 
   return {
     parecer:                 vals[iPar]  || '',
@@ -2179,10 +2536,12 @@ function lerParecer(linha){
  * PDF — utilidades
  ************************/
 function obterLinkPdf(linha){
-  const { sh } = getRespostasIndexMap_();
   if (!linha) throw new Error('Linha não informada.');
+  const ref = decodeRowRef_(linha);
+  if (!ref.row) throw new Error('Linha inválida.');
+  const { sh } = getRespostasIndexMapBySource_(ref.source, true);
   const iPdf = ensureColumn_(sh, 'PDF');
-  const link = sh.getRange(linha, iPdf+1).getValue();
+  const link = sh.getRange(ref.row, iPdf+1).getValue();
   return { link: link || '' };
 }
 function regerarPdf(linha){
@@ -2195,7 +2554,9 @@ function regerarPdf(linha){
  ************************/
 function desfazerEntrega(linha){
   if (!linha) throw new Error('Linha não informada.');
-  const { sh, idx } = getRespostasIndexMap_();
+  const ref = decodeRowRef_(linha);
+  if (!ref.row) throw new Error('Linha inválida.');
+  const { sh, idx } = getRespostasIndexMapBySource_(ref.source, true);
 
   const iEnt   = idx.entregueFlag;
   const iEntEm = ensureColumn_(sh, ENTREGUE_EM_HDR);
@@ -2208,12 +2569,12 @@ function desfazerEntrega(linha){
 
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try{
-    sh.getRange(linha, iEnt+1).setValue('');
-    sh.getRange(linha, iEntEm+1).setValue('');
-    sh.getRange(linha, iEntPor+1).setValue('');
-    sh.getRange(linha, iEntUni+1).setValue('');
-    sh.getRange(linha, iEntObs+1).setValue('');
-    sh.getRange(linha, iStatus+1).setValue('PENDENTE');
+    sh.getRange(ref.row, iEnt+1).setValue('');
+    sh.getRange(ref.row, iEntEm+1).setValue('');
+    sh.getRange(ref.row, iEntPor+1).setValue('');
+    sh.getRange(ref.row, iEntUni+1).setValue('');
+    sh.getRange(ref.row, iEntObs+1).setValue('');
+    sh.getRange(ref.row, iStatus+1).setValue('PENDENTE');
   } finally {
     lock.releaseLock();
   }
@@ -2227,50 +2588,49 @@ function historicoPorCPF(cpf){
   const docpf = normalizeCPF(cpf);
   if (!docpf) return { registros: [] };
 
-  const { sh, headers, idx } = getRespostasIndexMap_();
-  const vals = sh.getDataRange().getValues();
-
-  const iProt   = findColIdx_(headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
-  const iEntEm  = ensureColumn_(sh, ENTREGUE_EM_HDR);
-  const iEntPor = ensureColumn_(sh, ENTREGUE_POR_HDR);
-  const iEntUni = ensureColumn_(sh, ENTREGUE_UNID_HDR);
-  const iEntObs = ensureColumn_(sh, ENTREGUE_OBS_HDR);
-  const iPdf    = idx.pdf >= 0 ? idx.pdf : ensureColumn_(sh, 'PDF');
-  const iDocs   = idx.docs;
-
   const out = [];
-  for (let i = 1; i < vals.length; i++){
-    const row = vals[i];
+  getRespostasIndexMapsConsulta_().forEach(pack => {
+    const vals = pack.sh.getDataRange().getValues();
+    const iProt   = findColIdx_(pack.headers, PROTOCOLO_HDR,'protocolo','nº protocolo','n° protocolo','numero do protocolo','id','id protocolo');
+    const iEntEm  = findColIdx_(pack.headers, ENTREGUE_EM_HDR, 'entregue em');
+    const iEntPor = findColIdx_(pack.headers, ENTREGUE_POR_HDR, 'entregue por');
+    const iEntUni = findColIdx_(pack.headers, ENTREGUE_UNID_HDR, 'unidade de entrega');
+    const iEntObs = findColIdx_(pack.headers, ENTREGUE_OBS_HDR, 'obs entrega');
+    const iPdf    = pack.idx.pdf;
+    const iDocs   = pack.idx.docs;
 
-    const cpfCell = (idx.cpf >= 0 && idx.cpf < row.length) ? row[idx.cpf] : '';
-    const cpfRow  = normalizeCPF(cpfCell);
-    if (!cpfRow || cpfRow !== docpf) continue;
+    for (let i = 1; i < vals.length; i++){
+      const row = vals[i];
 
-    const dSolic  = (idx.data >= 0 && idx.data < row.length) ? coerceSheetDate(row[idx.data]) : null;
+      const cpfCell = (pack.idx.cpf >= 0 && pack.idx.cpf < row.length) ? row[pack.idx.cpf] : '';
+      const cpfRow  = normalizeCPF(cpfCell);
+      if (!cpfRow || cpfRow !== docpf) continue;
 
-    const dEntRaw = (iEntEm >= 0 && iEntEm < row.length) ? row[iEntEm] : null;
-    const dEnt = dEntRaw ? parseAnyDate(dEntRaw) : null;
+      const dSolic  = (pack.idx.data >= 0 && pack.idx.data < row.length) ? coerceSheetDate(row[pack.idx.data]) : null;
 
-    const statusCell = (idx.status >= 0 && idx.status < row.length) ? row[idx.status] : 'PENDENTE';
+      const dEntRaw = (iEntEm >= 0 && iEntEm < row.length) ? row[iEntEm] : null;
+      const dEnt = dEntRaw ? parseAnyDate(dEntRaw) : null;
 
-    const status = isRowEntregue_(row, idx) ? 'ENTREGUE' : String(statusCell || 'PENDENTE').toUpperCase();
+      const statusCell = (pack.idx.status >= 0 && pack.idx.status < row.length) ? row[pack.idx.status] : 'PENDENTE';
+      const status = isRowEntregue_(row, pack.idx) ? 'ENTREGUE' : String(statusCell || 'PENDENTE').toUpperCase();
 
-    out.push({
-      linha: i+1,
-      protocolo:       (iProt >=0   && iProt   < row.length) ? (row[iProt]      || '') : '',
-      nome:            (idx.nome>=0 && idx.nome< row.length) ? (row[idx.nome]   || '') : '',
-      unidade:         (idx.unidade>=0 && idx.unidade<row.length) ? (row[idx.unidade] || '') : '',
-      beneficio:       (idx.beneficio>=0 && idx.beneficio<row.length) ? (row[idx.beneficio] || '') : '',
-      data:            dSolic ? formatDateBR(dSolic) : '',
-      status,
-      entregue_em:     dEnt ? Utilities.formatDate(dEnt, TZ, 'dd/MM/yyyy HH:mm') : '',
-      unidade_entrega: (iEntUni>=0 && iEntUni<row.length) ? (row[iEntUni] || '') : '',
-      entregue_por:    (iEntPor>=0 && iEntPor<row.length) ? (row[iEntPor] || '') : '',
-      obs_entrega:     (iEntObs>=0 && iEntObs<row.length) ? (row[iEntObs] || '') : '',
-      pdf:             (iPdf   >=0 && iPdf   <row.length) ? (row[iPdf]    || '') : '',
-      docs:            (iDocs  >=0 && iDocs  <row.length) ? (row[iDocs]   || '') : ''
-    });
-  }
+      out.push({
+        linha: encodeRowRef_(pack.source, i+1),
+        protocolo:       (iProt >=0   && iProt   < row.length) ? (row[iProt]      || '') : '',
+        nome:            (pack.idx.nome>=0 && pack.idx.nome< row.length) ? (row[pack.idx.nome]   || '') : '',
+        unidade:         (pack.idx.unidade>=0 && pack.idx.unidade<row.length) ? (row[pack.idx.unidade] || '') : '',
+        beneficio:       (pack.idx.beneficio>=0 && pack.idx.beneficio<row.length) ? (row[pack.idx.beneficio] || '') : '',
+        data:            dSolic ? formatDateBR(dSolic) : '',
+        status,
+        entregue_em:     dEnt ? Utilities.formatDate(dEnt, TZ, 'dd/MM/yyyy HH:mm') : '',
+        unidade_entrega: (iEntUni>=0 && iEntUni<row.length) ? (row[iEntUni] || '') : '',
+        entregue_por:    (iEntPor>=0 && iEntPor<row.length) ? (row[iEntPor] || '') : '',
+        obs_entrega:     (iEntObs>=0 && iEntObs<row.length) ? (row[iEntObs] || '') : '',
+        pdf:             (iPdf   >=0 && iPdf   <row.length) ? (row[iPdf]    || '') : '',
+        docs:            (iDocs  >=0 && iDocs  <row.length) ? (row[iDocs]   || '') : ''
+      });
+    }
+  });
 
   sortList_(out, 'data_desc');
   return { registros: out };

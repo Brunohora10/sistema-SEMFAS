@@ -528,12 +528,13 @@
       e.preventDefault();
       const cpfB = document.querySelector('input[name="cpf"]');
       const cpfS = document.querySelector('input[name="cpfs"]');
+      const cpfSNum = onlyDigits(cpfS.value);
       if (!cpfIsValid(cpfB.value)){
         setCpfMsg(cpfB, false, 'CPF inválido.', 'err');
         cpfB.focus();
         return;
       }
-      if (!cpfIsValid(cpfS.value)){
+      if (cpfSNum.length > 0 && !cpfIsValid(cpfS.value)){
         setCpfMsg(cpfS, false, 'CPF inválido.', 'err');
         cpfS.focus();
         return;

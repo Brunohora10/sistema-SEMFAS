@@ -3167,8 +3167,9 @@
     if (VIEW === 'ti_maquinas_stats') $('maqStatsApp').classList.add('show');
 
     if (VIEW === 'ti'){
-      await loadBoot();
-      await loadList();
+      // === LIGA TODOS OS CLIQUES PRIMEIRO (antes de qualquer chamada ao servidor) ===
+      // Assim os botões respondem na hora, mesmo enquanto os dados ainda carregam
+      // e mesmo que o backend esteja lento ou retorne erro.
 
       // Botão de tema
       if ($('themeToggle')) {
@@ -3239,6 +3240,14 @@
       $('ti_modalTec').addEventListener('click',(e)=>{ if(e.target=== $('ti_modalTec')) showModal($('ti_modalTec'), false); });
 
       $('ti_modal').addEventListener('click',(e)=>{ if(e.target=== $('ti_modal')){ closeChat(); showModal($('ti_modal'), false); } });
+
+      // === AGORA sim carrega os dados (cliques já estão ativos) ===
+      // Em paralelo e sem travar caso um deles falhe.
+      loadBoot().catch(err => console.warn('Falha ao carregar boot:', err));
+      loadList().catch(err => {
+        console.warn('Falha ao carregar lista:', err);
+        try { $('ti_info').textContent = 'Falha ao carregar chamados. Clique em Atualizar.'; } catch(_){}
+      });
     }
 
     if (VIEW === 'ti_tv'){
