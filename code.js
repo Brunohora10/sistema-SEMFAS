@@ -94,10 +94,16 @@ function __content_(file, extra) {
 }
 
 function doGet(e) {
+  // Verificações de estrutura (abas/gatilho) são pesadas: roda no máximo 1x a cada 6h por usuário
+  // (antes rodava em TODA abertura de página e em toda chamada ?api=)
   try {
-    ensureOutboxSheet_();
-    ensureQueueTrigger_();
-    ensureTiSheets_(); // ✅ garante Chamados / Historico do TI
+    const bootCache = CacheService.getUserCache();
+    if (!bootCache.get('boot_ensure_v1')) {
+      ensureOutboxSheet_();
+      ensureQueueTrigger_();
+      // ✅ garante Chamados / Historico do TI (só marca como feito se deu certo)
+      if (ensureTiSheets_()) bootCache.put('boot_ensure_v1', '1', 21600);
+    }
   } catch (err) {
     Logger.log('[BOOT] ' + (err && err.message ? err.message : err));
   }
@@ -693,7 +699,7 @@ function ti__listDriveFilesByFolderId_(folderId, maxItems){
         const fileId = file.getId();
         const nome = String(file.getName() || ('Anexo ' + (links.length + 1))).trim();
         if (!fileId) continue;
-        try { setPublicSharing_(file); } catch(_){ }
+        ti__ensureShared_(file);
         const lnk = buildDriveLinks_(fileId);
         links.push(lnk.view || file.getUrl());
         nomes.push(nome || ('Anexo ' + links.length));
@@ -2899,8 +2905,13 @@ function ensureTiSheets_(){
   catch(e){ Logger.log('[TI] ensureTiSheets_ erro: ' + (e && e.message ? e.message : e)); return false; }
 }
 
+// Cache por execução: a planilha é aberta uma única vez por chamada ao servidor
+let __tiSS_ = null;
+let __tiPack_ = null;
+
 function ti__ss_(){
-  return SpreadsheetApp.openById(PLANILHA_ID);
+  if (!__tiSS_) __tiSS_ = SpreadsheetApp.openById(PLANILHA_ID);
+  return __tiSS_;
 }
 function ti__sheet_(name){
   const ss = ti__ss_();
@@ -2914,7 +2925,7 @@ function ti__defaultHeaders_(){
     'Carimbo','Protocolo','Nome','Email','Telefone','Setor/Local',
     'Categoria','Prioridade','Descrição','Status','Responsável',
     'Atualizado em','Obs','Anexo (Link)','Anexo (Nome)','Anexo (Pasta ID)',
-    'TI Última Leitura','Solicitante Última Leitura'
+    'TI Última Leitura','Solicitante Última Leitura','Previsão'
   ];
 }
 
@@ -2987,46 +2998,22 @@ function ti__extractUrlsFromFormula_(formula){
   return urls;
 }
 
-function ti__extractUrlsFromCell_(range){
+/** Extrai URLs de uma célula já lida (rich text + fórmula + texto), sem novas chamadas à planilha */
+function ti__urlsFromCellParts_(rt, formula, display){
   const found = [];
   const add = (u) => {
     const v = String(u || '').trim();
-    if (v) found.push(v);
+    if (v && /^https?:\/\//i.test(v) && found.indexOf(v) < 0) found.push(v);
   };
-
   try {
-    const rt = range.getRichTextValue();
     if (rt) {
-      const root = rt.getLinkUrl();
-      if (root) add(root);
-      const runs = rt.getRuns() || [];
-      runs.forEach((r) => {
-        try {
-          const u = r.getLinkUrl();
-          if (u) add(u);
-        } catch(_){ }
-      });
+      add(rt.getLinkUrl());
+      (rt.getRuns() || []).forEach((r) => { try { add(r.getLinkUrl()); } catch(_){ } });
     }
   } catch(_){ }
-
-  try {
-    const formula = range.getFormula();
-    ti__extractUrlsFromFormula_(formula).forEach(add);
-  } catch(_){ }
-
-  try {
-    const display = range.getDisplayValue();
-    ti__extractUrls_(display).forEach(add);
-  } catch(_){ }
-
-  const uniq = [];
-  const seen = Object.create(null);
-  found.forEach((u) => {
-    if (seen[u]) return;
-    seen[u] = true;
-    uniq.push(u);
-  });
-  return uniq;
+  ti__extractUrlsFromFormula_(formula).forEach(add);
+  ti__extractUrls_(display instanceof Date ? '' : display).forEach(add);
+  return found;
 }
 
 function ti__parseAnexosFromCell_(raw){
@@ -3055,50 +3042,6 @@ function ti__parseAnexosFromCell_(raw){
   }
 
   return { links, nomes };
-}
-
-function ti__collectUrlsFromRow_(sh, rowRef){
-  const urls = [];
-  const add = (u) => {
-    const v = String(u || '').trim();
-    if (v && /^https?:\/\//i.test(v)) urls.push(v);
-  };
-
-  try {
-    const lc = sh.getLastColumn();
-    const range = sh.getRange(rowRef, 1, 1, lc);
-
-    const values = range.getDisplayValues()[0] || [];
-    values.forEach((v) => ti__extractUrls_(v).forEach(add));
-
-    const formulas = range.getFormulas()[0] || [];
-    formulas.forEach((f) => ti__extractUrlsFromFormula_(f).forEach(add));
-
-    const rich = range.getRichTextValues()[0] || [];
-    rich.forEach((rt) => {
-      try {
-        if (!rt) return;
-        const root = rt.getLinkUrl();
-        if (root) add(root);
-        const runs = rt.getRuns() || [];
-        runs.forEach((r) => {
-          try {
-            const u = r.getLinkUrl();
-            if (u) add(u);
-          } catch(_){ }
-        });
-      } catch(_){ }
-    });
-  } catch(_){ }
-
-  const uniq = [];
-  const seen = Object.create(null);
-  urls.forEach((u) => {
-    if (seen[u]) return;
-    seen[u] = true;
-    uniq.push(u);
-  });
-  return uniq;
 }
 
 function ti__findDriveAnexosByProtocolo_(protocolo, maxItems){
@@ -3135,7 +3078,7 @@ function ti__findDriveAnexosByProtocolo_(protocolo, maxItems){
       const fileId = file.getId();
       if (!fileId || seen[fileId]) return;
       seen[fileId] = true;
-      try { setPublicSharing_(file); } catch(_){ }
+      ti__ensureShared_(file);
       const driveLinks = buildDriveLinks_(fileId);
       links.push(driveLinks.view || file.getUrl());
       nomes.push(nome);
@@ -3169,24 +3112,23 @@ function ti__findDriveAnexosByProtocolo_(protocolo, maxItems){
     } catch(_){ }
   };
 
+  // A busca por título já encontra arquivos da pasta raiz com o protocolo no nome,
+  // então não é preciso varrer a pasta inteira arquivo por arquivo.
   try {
-    runSearch(id);
-    if (links.length < limit && idNoTi && idNoTi !== id) runSearch(idNoTi);
+    if (!links.length) runSearch(id);
+    if (!links.length && idNoTi && idNoTi !== id) runSearch(idNoTi);
   } catch(_){ }
 
-  if (!links.length) {
-    try {
-      const folder = DriveApp.getFolderById(FOLDER_PDFS_ID);
-      const it = folder.getFiles();
-      let scanned = 0;
-      while (it.hasNext() && links.length < limit && scanned < 180) {
-        scanned++;
-        addFile(it.next());
-      }
-    } catch(_){ }
-  }
-
   return { links, nomes };
+}
+
+/** Compartilha por link só se ainda não estiver (ler é bem mais rápido que regravar). */
+function ti__ensureShared_(file){
+  try {
+    if (file.getSharingAccess() === DriveApp.Access.ANYONE_WITH_LINK) return file;
+  } catch(_){ }
+  try { setPublicSharing_(file); } catch(_){ }
+  return file;
 }
 
 function ti_listarAnexosDrive(input){
@@ -3293,16 +3235,35 @@ function ti__findRowByProtocolo_(sh, headers, protocolo){
 }
 
 function ti__ensureSheets_(){
+  if (__tiPack_) return __tiPack_;
+
   const sh = ti__sheet_(TI_SHEET_NAME);
   const headers = ti__ensureHeaders_(sh, ti__defaultHeaders_());
 
-  const hist = ti__sheet_(TI_HIST_SHEET);
-  ti__ensureHeaders_(hist, ['Carimbo','Protocolo','Ação','Detalhes','Usuário','Setor']);
+  // Histórico e Chat só são abertos quando alguém realmente usa (getters preguiçosos)
+  let hist = null, chat = null, chatHeaders = null;
+  const pack = { sh, headers };
+  Object.defineProperty(pack, 'hist', { enumerable: true, get(){
+    if (!hist) {
+      hist = ti__sheet_(TI_HIST_SHEET);
+      ti__ensureHeaders_(hist, ['Carimbo','Protocolo','Ação','Detalhes','Usuário','Setor']);
+    }
+    return hist;
+  }});
+  Object.defineProperty(pack, 'chat', { enumerable: true, get(){
+    if (!chat) {
+      chat = ti__sheet_(TI_CHAT_SHEET);
+      chatHeaders = ti__ensureHeaders_(chat, ['Carimbo','Protocolo','Autor Tipo','Autor Nome','Mensagem','Canal']);
+    }
+    return chat;
+  }});
+  Object.defineProperty(pack, 'chatHeaders', { enumerable: true, get(){
+    if (!chat) pack.chat;
+    return chatHeaders;
+  }});
 
-  const chat = ti__sheet_(TI_CHAT_SHEET);
-  ti__ensureHeaders_(chat, ['Carimbo','Protocolo','Autor Tipo','Autor Nome','Mensagem','Canal']);
-
-  return { sh, headers, hist, chat };
+  __tiPack_ = pack;
+  return pack;
 }
 
 function ti__ctx_(){
@@ -3338,8 +3299,10 @@ function ti__nextProtocolo_(){
 function ti__splitContato_(contato){
   const s = String(contato||'').trim();
   const email = (s.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)||[])[0] || '';
-  const tel = (s.replace(/[^\d()+\- ]/g,'').trim()) || '';
-  return { email, tel };
+  // tira o e-mail antes de extrair o telefone (senão números do e-mail entram no telefone)
+  const resto = email ? s.replace(email, ' ') : s;
+  const tel = resto.replace(/[^\d()+\- ]/g,'').replace(/\s+/g,' ').trim();
+  return { email, tel: /\d/.test(tel) ? tel : '' };
 }
 
 function ti__normalizePrioridade_(p){
@@ -3354,6 +3317,12 @@ function ti__normalizePrioridade_(p){
 function ti__cleanText_(v, maxLen){
   const lim = Math.max(1, parseInt(maxLen || 500, 10));
   return String(v || '').replace(/\s+/g, ' ').trim().slice(0, lim);
+}
+
+/** Previsão é texto livre ("dd/mm/aaaa ou texto"); se a planilha converteu em data, formata de volta. */
+function ti__fmtPrevisao_(v){
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, 'dd/MM/yyyy');
+  return String(v || '').trim();
 }
 
 function ti__autorTipo_(v){
@@ -3424,11 +3393,12 @@ function ti_chat_enviar(input){
   const mensagem = ti__cleanText_(input.mensagem || input.msg || input.texto || '', 2000);
   if (!mensagem) return { ok:false, msg:'Mensagem obrigatória.' };
 
-  const { sh, headers, chat } = ti__ensureSheets_();
+  const tiPack = ti__ensureSheets_();
+  const { sh, headers, chat } = tiPack;
   const chamadoRow = ti__findRowByProtocolo_(sh, headers, protocolo);
   if (chamadoRow < 0) return { ok:false, msg:'Chamado não encontrado.' };
 
-  const chatHeaders = chat.getRange(1,1,1,chat.getLastColumn()).getValues()[0] || [];
+  const chatHeaders = tiPack.chatHeaders || [];
   const iCar = ti__idx_(chatHeaders,'Carimbo');
   const iProt= ti__idx_(chatHeaders,'Protocolo');
   const iTipo= ti__idx_(chatHeaders,'Autor Tipo');
@@ -3451,7 +3421,7 @@ function ti_chat_enviar(input){
   const canal = ti__cleanText_(input.canal || 'WEB', 40).toUpperCase();
   const now = new Date();
 
-  const row = new Array(chat.getLastColumn()).fill('');
+  const row = new Array(chatHeaders.length).fill('');
   row[iCar] = now;
   row[iProt] = protocolo;
   row[iTipo] = autorTipo;
@@ -3511,43 +3481,37 @@ function ti_chat_listar(input){
   const protocolo = String(input.id || input.protocolo || input.chamadoId || '').trim();
   if (!protocolo) return { ok:true, items: [] };
 
-  const { sh, headers, chat } = ti__ensureSheets_();
+  const tiPack = ti__ensureSheets_();
+  const { sh, headers, chat } = tiPack;
   const iReadTI  = ti__idx_(headers, 'TI Última Leitura');
   const iReadSol = ti__idx_(headers, 'Solicitante Última Leitura');
 
   // Localizar linha do chamado na planilha Chamados
   const chamadoRow = ti__findRowByProtocolo_(sh, headers, protocolo);
 
-  // Marcar leitura do lado que está consultando (grava na planilha Chamados)
-  const leitor = String(input.leitor || '').trim().toUpperCase();
-  if (chamadoRow > 0 && (leitor === 'TI' || leitor === 'SOLICITANTE')) {
+  // Ler timestamps de leitura de cada lado (uma única leitura da linha)
+  const toDate = (v) => {
+    if (v instanceof Date) return v;
+    if (!v) return null;
+    const d = new Date(v);
+    return isNaN(d) ? null : d;
+  };
+  let readByTI = null, readBySolic = null;
+  if (chamadoRow > 0 && (iReadTI >= 0 || iReadSol >= 0)) {
     try {
-      const col = leitor === 'TI' ? iReadTI : iReadSol;
-      if (col >= 0) sh.getRange(chamadoRow, col + 1).setValue(new Date());
+      const rowVals = sh.getRange(chamadoRow, 1, 1, headers.length).getValues()[0] || [];
+      if (iReadTI >= 0) readByTI = toDate(rowVals[iReadTI]);
+      if (iReadSol >= 0) readBySolic = toDate(rowVals[iReadSol]);
     } catch(_){}
   }
 
-  // Ler timestamps de leitura de cada lado
-  let readByTI = null, readBySolic = null;
-  if (chamadoRow > 0) {
-    try {
-      if (iReadTI >= 0) {
-        const v = sh.getRange(chamadoRow, iReadTI + 1).getValue();
-        if (v instanceof Date) readByTI = v;
-        else if (v) readByTI = new Date(v);
-      }
-      if (iReadSol >= 0) {
-        const v = sh.getRange(chamadoRow, iReadSol + 1).getValue();
-        if (v instanceof Date) readBySolic = v;
-        else if (v) readBySolic = new Date(v);
-      }
-    } catch(_){}
-  }
+  const leitor = String(input.leitor || '').trim().toUpperCase();
+  const leitorCol = leitor === 'TI' ? iReadTI : (leitor === 'SOLICITANTE' ? iReadSol : -1);
 
   const lastRow = chat.getLastRow();
   if (lastRow < 2) return { ok:true, items: [] };
 
-  const chatHeaders = chat.getRange(1,1,1,chat.getLastColumn()).getValues()[0] || [];
+  const chatHeaders = tiPack.chatHeaders || [];
   const iCar = ti__idx_(chatHeaders,'Carimbo');
   const iProt= ti__idx_(chatHeaders,'Protocolo');
   const iTipo= ti__idx_(chatHeaders,'Autor Tipo');
@@ -3564,17 +3528,25 @@ function ti_chat_listar(input){
     ? Math.min(totalRows, Math.max(limit * 4, 240))
     : Math.min(totalRows, Math.max(limit * 6, 900));
   const startRow = lastRow - scanRows + 1;
-  const vals = chat.getRange(startRow,1,scanRows,chat.getLastColumn()).getValues();
+  const vals = chat.getRange(startRow,1,scanRows,chatHeaders.length || chat.getLastColumn()).getValues();
   const out = [];
+  // Lado oposto ao leitor: só marcamos "lido" se ele tiver mensagem nova
+  const ladoOposto = leitor === 'TI' ? 'SOLICITANTE' : (leitor === 'SOLICITANTE' ? 'TI' : '');
+  const jaLido = leitor === 'TI' ? readByTI : readBySolic;
+  let precisaMarcarLido = false;
   for (let i=0;i<vals.length;i++){
     const row = vals[i];
     if (String(row[iProt] || '').trim() !== protocolo) continue;
 
     const quandoDate = row[iCar] instanceof Date ? row[iCar] : parseAnyDate(row[iCar]);
-    if (sinceDate && quandoDate && quandoDate <= sinceDate) continue;
-
     const tipo = String(row[iTipo] || '');
     const tipoUp = tipo.toUpperCase();
+
+    if (ladoOposto && tipoUp === ladoOposto && quandoDate && (!jaLido || quandoDate > jaLido)) {
+      precisaMarcarLido = true;
+    }
+
+    if (sinceDate && quandoDate && quandoDate <= sinceDate) continue;
 
     // Determinar se a mensagem foi lida pelo outro lado
     let lido = false;
@@ -3593,11 +3565,17 @@ function ti_chat_listar(input){
     });
   }
 
-  out.sort((a,b)=>{
-    const ta = parseAnyDate(a.quando) || new Date(0);
-    const tb = parseAnyDate(b.quando) || new Date(0);
-    return ta.getTime() - tb.getTime();
-  });
+  out.sort((a,b)=> String(a.quando).localeCompare(String(b.quando)));
+
+  // Grava "TI/Solicitante Última Leitura" só quando há mensagem nova do outro lado
+  // (antes gravava na planilha a cada 8 segundos, mesmo sem nada novo)
+  if (chamadoRow > 0 && leitorCol >= 0) {
+    if (precisaMarcarLido) {
+      try { sh.getRange(chamadoRow, leitorCol + 1).setValue(new Date()); } catch(_){}
+    }
+    // Quem está lendo agora já viu tudo o que o outro lado mandou
+    out.forEach(m => { if (String(m.autorTipo || '').toUpperCase() === ladoOposto) m.lido = true; });
+  }
 
   return { ok:true, items: out.slice(-limit) };
 }
@@ -3728,16 +3706,17 @@ function ti_abrirChamado(payload){
 }
 
 /** Boot pro front */
+const TI_BOOT_CACHE_KEY = 'ti_boot_v2';
+
 function ti_boot(){
-  // Cache de 60 segundos
-  const cache = CacheService.getScriptCache();
-  const cacheKey = 'ti_boot_' + Session.getActiveUser().getEmail();
+  // Cache de 60 segundos, separado por usuário (não precisa abrir a planilha aqui)
+  const cache = CacheService.getUserCache();
+  const cacheKey = TI_BOOT_CACHE_KEY;
   try{
     const cached = cache.get(cacheKey);
     if(cached) return JSON.parse(cached);
   }catch(e){}
-  
-  ensureTiSheets_();
+
   const ctx = ti__ctx_();
   const tecnicoAtual = ti_getTecnicoAtual_();
   const result = {
@@ -3829,6 +3808,8 @@ function ti_setTecnicoAtual(input){
   }catch(e){
     return { ok:false, msg:'Falha ao salvar técnico: ' + e.message };
   }
+  // Limpa o boot em cache para o novo nome aparecer na hora
+  try { CacheService.getUserCache().remove(TI_BOOT_CACHE_KEY); } catch(_){}
   return { ok:true, tecnicoAtual: nome };
 }
 
@@ -3892,6 +3873,7 @@ function ti_listarChamados(params){
   const iResp= ti__idx_(headers,'Responsável');
   const iUp  = ti__idx_(headers,'Atualizado em');
   const iObs = ti__idx_(headers,'Obs');
+  const iPrev= ti__idxAny_(headers,'Previsão','Previsao');
 
   const q = String(params.q||'').trim().toLowerCase();
   const fStatus = String(params.status||'').trim().toUpperCase();
@@ -3938,7 +3920,13 @@ function ti_listarChamados(params){
 
     const titulo = (descricao.split('\n')[0] || descricao || protocolo).slice(0,80);
 
+    // chave de ordenação calculada uma vez por linha (antes era recalculada a cada comparação)
+    const dUp = row[iUp] instanceof Date ? row[iUp] : parseAnyDate(row[iUp]);
+    const dCar = row[iCar] instanceof Date ? row[iCar] : parseAnyDate(row[iCar]);
+    const sortTs = (dUp || dCar) ? (dUp || dCar).getTime() : 0;
+
     out.push({
+      _ts: sortTs,
       rowRef: startRow + r,
       id: protocolo,
       criadoEm: row[iCar] instanceof Date ? Utilities.formatDate(row[iCar], TZ, "yyyy-MM-dd'T'HH:mm:ss") : (row[iCar]||''),
@@ -3952,18 +3940,15 @@ function ti_listarChamados(params){
       titulo,
       descricao,
       responsavel: resp,
-      previsao: '',
+      previsao: iPrev >= 0 ? ti__fmtPrevisao_(row[iPrev]) : '',
       concluidoEm: '',
       ultimaAcao: obs
     });
   }
 
   // ordena por atualizado desc
-  out.sort((a,b)=>{
-    const ta = parseAnyDate(a.atualizadoEm) || parseAnyDate(a.criadoEm) || new Date(0);
-    const tb = parseAnyDate(b.atualizadoEm) || parseAnyDate(b.criadoEm) || new Date(0);
-    return tb.getTime() - ta.getTime();
-  });
+  out.sort((a,b)=> b._ts - a._ts);
+  out.forEach(x => { delete x._ts; });
 
   const result = { ok:true, items: out.slice(0, limit) };
   
@@ -4008,6 +3993,7 @@ function ti_obterChamado(input){
   const iAnxN= ti__idxAny_(headers, 'Anexo (Nome)', 'Anexo Nome', 'Nome do Anexo');
   const iAnxFld = ti__idxAny_(headers, 'Anexo (Pasta ID)', 'Anexo Pasta ID', 'Pasta Anexo ID', 'Pasta ID');
   const iDocs= ti__idxAny_(headers, 'Documentos', 'Docs', 'Arquivos Anexos', 'Documentos/Anexos');
+  const iPrev= ti__idxAny_(headers, 'Previsão', 'Previsao');
 
   const descricao = String(row[iDes]||'').trim();
   const status = String(row[iSt]||'').trim().toUpperCase();
@@ -4035,35 +4021,31 @@ function ti_obterChamado(input){
     anexoNomes = parsedDocs.nomes;
   }
 
-  if (iAnx >= 0) {
+  // Links embutidos (rich text / fórmula HYPERLINK): lê a linha inteira uma vez só
+  let rowRich = null, rowForm = null;
+  const urlsFromCol = (c) => {
+    if (c < 0) return [];
     try {
-      const urlsCell = ti__extractUrlsFromCell_(sh.getRange(rowRef, iAnx + 1));
-      if (urlsCell.length) {
-        const has = new Set(anexoLinks);
-        urlsCell.forEach((u) => {
-          if (has.has(u)) return;
-          anexoLinks.push(u);
-          anexoNomes.push('');
-          has.add(u);
-        });
+      if (!rowRich) {
+        const rg = sh.getRange(rowRef, 1, 1, row.length);
+        rowRich = rg.getRichTextValues()[0] || [];
+        rowForm = rg.getFormulas()[0] || [];
       }
-    } catch(_){ }
-  }
+      return ti__urlsFromCellParts_(rowRich[c], rowForm[c], row[c]);
+    } catch(_){ return []; }
+  };
+  const addExtra = (urls) => {
+    const has = new Set(anexoLinks);
+    urls.forEach((u) => {
+      if (has.has(u)) return;
+      anexoLinks.push(u);
+      anexoNomes.push('');
+      has.add(u);
+    });
+  };
 
-  if (iDocs >= 0) {
-    try {
-      const urlsCell = ti__extractUrlsFromCell_(sh.getRange(rowRef, iDocs + 1));
-      if (urlsCell.length) {
-        const has = new Set(anexoLinks);
-        urlsCell.forEach((u) => {
-          if (has.has(u)) return;
-          anexoLinks.push(u);
-          anexoNomes.push('');
-          has.add(u);
-        });
-      }
-    } catch(_){ }
-  }
+  addExtra(urlsFromCol(iAnx));
+  addExtra(urlsFromCol(iDocs));
 
   if (anexoLinks.length) {
     anexoNomes = anexoLinks.map((_, i) => {
@@ -4073,7 +4055,10 @@ function ti_obterChamado(input){
   }
 
   if (!anexoLinks.length) {
-    const allUrls = ti__collectUrlsFromRow_(sh, rowRef);
+    const allUrls = [];
+    for (let c = 0; c < row.length; c++) {
+      urlsFromCol(c).forEach(u => { if (allUrls.indexOf(u) < 0) allUrls.push(u); });
+    }
     if (allUrls.length) {
       anexoLinks = allUrls;
       anexoNomes = allUrls.map((_, i) => 'Anexo ' + (i + 1));
@@ -4097,7 +4082,7 @@ function ti_obterChamado(input){
     titulo: (descricao.split('\n')[0] || descricao || protocolo).slice(0,80),
     descricao,
     responsavel: String(row[iResp]||'').trim(),
-    previsao: '',
+    previsao: iPrev >= 0 ? ti__fmtPrevisao_(row[iPrev]) : '',
     concluidoEm: '',
     ultimaAcao: String(row[iObs]||'').trim(),
     anexoFolderId,
@@ -4154,12 +4139,15 @@ function ti_criarChamado(payload){
   row[iTel]  = contato.tel;
   row[iUni]  = String(payload.unidade||'').trim();
   row[iCat]  = String(payload.categoria||'').trim();
-  row[iPr]   = String(payload.prioridade||'NORMAL').trim().toUpperCase();
+  row[iPr]   = ti__normalizePrioridade_(payload.prioridade || 'NORMAL');
   row[iDes]  = descricaoFinal;
   row[iSt]   = String(payload.status||'ABERTO').trim().toUpperCase();
   row[iResp] = String(payload.responsavel||ti_getTecnicoAtual_()||'').trim();
   row[iUp]   = now;
   row[iObs]  = String(payload.ultimaAcao||'Criado').trim();
+  const iPrev = ti__idxAny_(headers,'Previsão','Previsao');
+  const previsao = ti__cleanText_(payload.previsao || '', 120);
+  if (iPrev >= 0 && previsao) row[iPrev] = "'" + previsao; // apóstrofo: grava como texto (não vira data)
 
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try{ sh.appendRow(row); }
@@ -4192,6 +4180,7 @@ function ti_atualizarChamado(payload){
   const iResp= ti__idx_(headers,'Responsável');
   const iUp  = ti__idx_(headers,'Atualizado em');
   const iObs = ti__idx_(headers,'Obs');
+  const iPrev= ti__idxAny_(headers,'Previsão','Previsao');
 
   const rowRef = ti__findRowByProtocolo_(sh, headers, protocolo);
   if (rowRef < 0) return { ok:false, msg:'Não encontrado.' };
@@ -4202,23 +4191,40 @@ function ti_atualizarChamado(payload){
   const desc   = String(payload.descricao||'').trim();
   const descricaoFinal = titulo && desc ? (titulo + '\n' + desc) : (desc || titulo);
 
+  // Monta as mudanças em memória (coluna 0-based -> valor)
+  const changes = {};
+  const put = (idx, v) => { if (idx >= 0) changes[idx] = v; };
+  if (payload.status != null)      put(iSt,  String(payload.status).trim().toUpperCase());
+  if (payload.prioridade != null)  put(iPr,  String(payload.prioridade).trim().toUpperCase());
+  if (payload.categoria != null)   put(iCat, String(payload.categoria||'').trim());
+  if (payload.unidade != null)     put(iUni, String(payload.unidade||'').trim());
+  if (payload.solicitante != null) put(iNom, String(payload.solicitante||'').trim());
+  if (payload.contato != null){
+    if (contato.email) put(iEm, contato.email);
+    if (contato.tel)   put(iTel, contato.tel);
+  }
+  if (payload.titulo != null || payload.descricao != null) put(iDes, descricaoFinal);
+  if (payload.responsavel != null) put(iResp, String(payload.responsavel||'').trim());
+  put(iUp, new Date());
+  if (payload.ultimaAcao != null)  put(iObs, String(payload.ultimaAcao||'').trim());
+  if (payload.previsao != null) {
+    const prev = ti__cleanText_(payload.previsao, 120);
+    put(iPrev, prev ? "'" + prev : ''); // apóstrofo: grava como texto (não vira data)
+  }
+
+  // Agrupa colunas vizinhas e grava cada bloco de uma vez
+  // (antes eram até 11 gravações separadas; colunas não alteradas nunca são tocadas)
+  const cols = Object.keys(changes).map(Number).sort((a,b)=>a-b);
+  const blocos = [];
+  cols.forEach(c => {
+    const last = blocos[blocos.length - 1];
+    if (last && c === last.fim + 1) { last.fim = c; last.vals.push(changes[c]); }
+    else blocos.push({ ini: c, fim: c, vals: [changes[c]] });
+  });
+
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try{
-    if (payload.status != null)      sh.getRange(rowRef, iSt+1).setValue(String(payload.status).trim().toUpperCase());
-    if (payload.prioridade != null)  sh.getRange(rowRef, iPr+1).setValue(String(payload.prioridade).trim().toUpperCase());
-    if (payload.categoria != null)   sh.getRange(rowRef, iCat+1).setValue(String(payload.categoria||'').trim());
-    if (payload.unidade != null)     sh.getRange(rowRef, iUni+1).setValue(String(payload.unidade||'').trim());
-    if (payload.solicitante != null) sh.getRange(rowRef, iNom+1).setValue(String(payload.solicitante||'').trim());
-    if (payload.contato != null){
-      if (contato.email) sh.getRange(rowRef, iEm+1).setValue(contato.email);
-      if (contato.tel)   sh.getRange(rowRef, iTel+1).setValue(contato.tel);
-    }
-    if (payload.titulo != null || payload.descricao != null){
-      sh.getRange(rowRef, iDes+1).setValue(descricaoFinal);
-    }
-    if (payload.responsavel != null) sh.getRange(rowRef, iResp+1).setValue(String(payload.responsavel||'').trim());
-    sh.getRange(rowRef, iUp+1).setValue(new Date());
-    if (payload.ultimaAcao != null) sh.getRange(rowRef, iObs+1).setValue(String(payload.ultimaAcao||'').trim());
+    blocos.forEach(b => sh.getRange(rowRef, b.ini + 1, 1, b.vals.length).setValues([b.vals]));
   } finally {
     lock.releaseLock();
   }
@@ -4242,15 +4248,20 @@ function ti_historicoChamado(input){
   const out = [];
   for (let i=0;i<vals.length;i++){
     if (String(vals[i][1]||'').trim() !== protocolo) continue;
+    const d = vals[i][0] instanceof Date ? vals[i][0] : parseAnyDate(vals[i][0]);
     out.push({
-      quando: vals[i][0] instanceof Date ? Utilities.formatDate(vals[i][0], TZ, 'dd/MM/yyyy HH:mm') : String(vals[i][0]||''),
+      _ts: d ? d.getTime() : 0,
+      quando: d ? Utilities.formatDate(d, TZ, 'dd/MM/yyyy HH:mm') : String(vals[i][0]||''),
+      quandoIso: d ? Utilities.formatDate(d, TZ, "yyyy-MM-dd'T'HH:mm:ss") : '',
       acao: String(vals[i][2]||''),
       detalhes: String(vals[i][3]||''),
       usuario: String(vals[i][4]||''),
       setor: String(vals[i][5]||'')
     });
   }
-  out.sort((a,b)=> (parseAnyDate(b.quando)||0) - (parseAnyDate(a.quando)||0));
+  // Ordena pela data real (antes a data "dd/MM/yyyy HH:mm" era lida no formato americano)
+  out.sort((a,b)=> b._ts - a._ts);
+  out.forEach(x => { delete x._ts; });
   return { ok:true, items: out.slice(0,500) };
 }
 
@@ -4284,8 +4295,8 @@ function ti_relatorios(params){
   const iResp= ti__idx_(headers,'Responsável');
   const iProt= ti__idx_(headers,'Protocolo');
   const iNome= ti__idx_(headers,'Nome');
-  let iTit = ti__idx_(headers,'Título');
-  if (iTit < 0) iTit = ti__idx_(headers,'Titulo');
+  const iTit = ti__idxAny_(headers,'Título','Titulo');
+  const iDes = ti__idx_(headers,'Descrição');
 
   const porStatus = {}, porPrioridade = {}, porCategoria = {}, porUnidade = {}, porResponsavel = {}, porDia = {};
   let total = 0;
@@ -4347,7 +4358,12 @@ function ti_relatorios(params){
 
     const protocolo = iProt >= 0 ? String(values[r][iProt]||'').trim() : '';
     const solicitante = iNome >= 0 ? String(values[r][iNome]||'').trim() : '';
-    const titulo = iTit >= 0 ? String(values[r][iTit]||'').trim() : '';
+    // Não existe coluna "Título": o título é a 1ª linha da Descrição (igual à lista de chamados)
+    let titulo = iTit >= 0 ? String(values[r][iTit]||'').trim() : '';
+    if (!titulo && iDes >= 0) {
+      const desc = String(values[r][iDes]||'').trim();
+      titulo = (desc.split('\n')[0] || desc).slice(0,80);
+    }
 
     items.push({
       id: protocolo || '',
@@ -4404,7 +4420,7 @@ function ti_relatorios(params){
   const rankingLocais = Object.keys(porUnidade || {}).map(k => ({ nome:k, total: porUnidade[k]||0 }))
     .sort((a,b)=>b.total - a.total);
 
-  items.sort((a,b)=> (parseAnyDate(b.criadoEm)||0) - (parseAnyDate(a.criadoEm)||0));
+  items.sort((a,b)=> String(b.criadoEm).localeCompare(String(a.criadoEm))); // datas já em yyyy-MM-ddTHH:mm:ss
 
   const detalhes = {
     items: items.slice(0, 500),
@@ -4479,7 +4495,7 @@ function maq__idx_(headers, name){
 
 function maq_listar(params){
   params = params || {};
-  const { sh, headers } = maq__ensureSheets_();
+  const { sh, shHist, headers } = maq__ensureSheets_();
   
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok:true, items:[] };
@@ -4502,7 +4518,6 @@ function maq_listar(params){
   const out = [];
 
   // Mapa de ultima movimentacao por maquina
-  const { shHist } = maq__ensureSheets_();
   const histLast = {};
   const histLastRow = shHist.getLastRow();
   if (histLastRow > 1) {
